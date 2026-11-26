@@ -121,3 +121,28 @@ def zoho_customer_lookup() -> CustomerLookup:
             return CustomerInfo(naam=naam, bekend=False)
         return CustomerInfo(naam=rows[0].get("Account_Name", naam), klant_sinds=_date((rows[0].get("Created_Time") or "")[:10]))
     return CustomerLookup(search)
+
+
+@dataclass
+class CoverageInfo:
+    """Komt het kenteken voor in de dekkingsbestanden die claims@ naar Carglass en ANWB stuurt."""
+    voor_schade: bool = False      # in een dekkingsbestand verstuurd op of voor de schadedatum
+    na_schade: bool = False        # alleen in dekkingsbestanden na de schadedatum
+    eerst_gezien: Optional[date] = None
+
+
+class CoverageLookup:
+    def __init__(self, by_plate: Optional[dict[str, CoverageInfo]] = None):
+        self.by_plate = by_plate or {}
+        self.available = by_plate is not None
+
+    @classmethod
+    def from_json(cls, path: str) -> "CoverageLookup":
+        """{"Z383HL": {"voor_schade": true, "na_schade": true, "eerst_gezien": "2026-07-02"}}. Ontbreekt een kenteken dan is het nergens gevonden."""
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return cls({normalize_plate(k): CoverageInfo(voor_schade=bool(v.get("voor_schade")), na_schade=bool(v.get("na_schade")),
+                                                     eerst_gezien=_date(v.get("eerst_gezien"))) for k, v in data.items()})
+
+    def get(self, plate: str) -> Optional[CoverageInfo]:
+        return self.by_plate.get(normalize_plate(plate))

@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 from typing import Callable, Optional
 
 from .models import Claim, CheckResult, Signal, format_plate, normalize_phone, normalize_plate
-from .sources.context import CustomerLookup, PolicyLookup
+from .sources.context import CoverageLookup, CustomerLookup, PolicyLookup
 from .sources.history import HistoryIndex
 from .sources.rdw import RDWClient
 
@@ -56,10 +56,11 @@ WEIGHTS = {
     "V04_export": 20,
     "V05_apk_verlopen": 6,
     "V06_hoge_waarde_niet_rijdbaar": 5,
+    "V07_niet_in_dekkingsbestand": 25,
+    "V08_pas_na_schade_in_dekkingsbestand": 35,
+    "V09_kort_voor_schade_in_dekkingsbestand": 15,
     # Relatie
     "R01_verzekerde_onvolledig": 6,
-    "R02_verzekerde_onbekend_crm": 15,
-    "R03_nieuwe_klant": 10,
     "R04_melder_freemail_zakelijk": 3,
 }
 
@@ -107,11 +108,13 @@ def nl_feestdagen(year: int) -> dict[date, str]:
 class RuleContext:
     def __init__(self, history: Optional[HistoryIndex] = None, rdw: Optional[RDWClient] = None,
                  policies: Optional[PolicyLookup] = None, customers: Optional[CustomerLookup] = None,
+                 coverage: Optional[CoverageLookup] = None,
                  today: Optional[date] = None):
         self.history = history
         self.rdw = rdw
         self.policies = policies
         self.customers = customers
+        self.coverage = coverage
         self.today = today or date.today()
         self.checks: list[CheckResult] = []
         self.rdw_record: Optional[dict] = None
@@ -408,21 +411,6 @@ def rule_relatie(claim: Claim, ctx: RuleContext) -> list[Signal]:
     naam = (claim.verzekerde or "").strip()
     if len(re.findall(r"\w+", naam)) < 2 and not re.search(r"\b(b\.?v\.?|v\.?o\.?f\.?|holding|groep|transport|taxi)\b", naam.lower()):
         out.append(_sig("R01_verzekerde_onvolledig", "Naam verzekerde is onvolledig", f"Alleen '{naam}' opgegeven.", "Relatie"))
-    if ctx.customers and ctx.customers.available:
-        # 'Bedrijf / Contactpersoon' komt vaak voor. Gevonden als een van de delen bekend is.
-        info = None
-        for deel in [naam] + [d.strip() for d in naam.split("/") if d.strip()]:
-            info = ctx.customers.get(deel)
-            if info is not None and info.bekend:
-                break
-        if info is None or not info.bekend:
-            out.append(_sig("R02_verzekerde_onbekend_crm", "Verzekerde niet gevonden in Zoho CRM",
-                            f"Geen wagenpark gevonden op '{naam}'. Controleer of de naam klopt met de polis.", "Relatie"))
-        elif info.klant_sinds and claim.schadedatum and (claim.schadedatum - info.klant_sinds).days <= 90:
-            out.append(_sig("R03_nieuwe_klant", "Nieuwe klant", f"Klant sinds {info.klant_sinds:%d-%m-%Y}.", "Relatie"))
-        ctx.checks.append(CheckResult("Zoho CRM", "ok", f"Gezocht op '{naam}'"))
-    else:
-        ctx.checks.append(CheckResult("Zoho CRM", "niet beschikbaar", "Klantgegevens niet getoetst."))
     em = (claim.melder_email or "").lower()
     if em.endswith(FREEMAIL) or any(f in em for f in FREEMAIL):
         if claim.melder_bedrijf:
@@ -430,6 +418,37 @@ def rule_relatie(claim: Claim, ctx: RuleContext) -> list[Signal]:
     return out
 
 
+# --------------------------------------------------------------------------- dekking
+def rule_dekking(claim: Claim, ctx: RuleContext) -> list[Signal]:
+    """Stond het voertuig in de dekkingsbestanden (Carglass, ANWB) of in de BDX? Dat bevestigt dat het bij ons verzekerd is."""
+    out = []
+    # Alleen schades uit de BDX tellen. eFNOL meldingen (waaronder deze case zelf) bewijzen geen dekking.
+    in_bdx = bool(ctx.history and any(r.bron != "eFNOL" and r.folder_id != claim.folder_id
+                                      for r in ctx.history.as_insured_vehicle(claim.kenteken)))
+    if not (ctx.coverage and ctx.coverage.available):
+        ctx.checks.append(CheckResult("Dekkingsbestand", "niet beschikbaar", "Niet gecontroleerd of het voertuig in de dekkingsbestanden staat."))
+        return out
+    info = ctx.coverage.get(claim.kenteken)
+    sd = claim.schadedatum
+    if info and info.voor_schade:
+        if info.eerst_gezien and sd and 0 <= (sd - info.eerst_gezien).days <= 14:
+            out.append(_sig("V09_kort_voor_schade_in_dekkingsbestand", "Voertuig kort voor de schade aan de dekking toegevoegd",
+                            f"Voor het eerst in een dekkingsbestand op {info.eerst_gezien:%d-%m-%Y}, {(sd - info.eerst_gezien).days} dagen voor de schade.", "Voertuig"))
+        ctx.checks.append(CheckResult("Dekkingsbestand", "ok", "Voertuig stond voor de schadedatum in het dekkingsbestand"
+                                      + (f" (eerst gezien {info.eerst_gezien:%d-%m-%Y})" if info.eerst_gezien else "") + "."))
+    elif info and info.na_schade:
+        out.append(_sig("V08_pas_na_schade_in_dekkingsbestand", "Voertuig pas na de schadedatum in het dekkingsbestand",
+                        f"Eerst gezien {info.eerst_gezien:%d-%m-%Y}." if info.eerst_gezien else "Niet in dekkingsbestanden van voor de schade.",
+                        "Voertuig", hard=True))
+    elif in_bdx:
+        ctx.checks.append(CheckResult("Dekkingsbestand", "ok", "Niet in de dekkingsbestanden gevonden maar wel bekend uit eerdere schades in de BDX."))
+    else:
+        out.append(_sig("V07_niet_in_dekkingsbestand", "Voertuig staat niet in het dekkingsbestand",
+                        "Het kenteken komt niet voor in de dekkingsbestanden naar Carglass en ANWB en ook niet in de BDX. Controleer of het voertuig bij ons verzekerd is.",
+                        "Voertuig"))
+    return out
+
+
 RULES: list[Callable[[Claim, RuleContext], list[Signal]]] = [
-    rule_tijdlijn, rule_polis, rule_historie, rule_toedracht, rule_documentatie, rule_voertuig, rule_relatie,
+    rule_tijdlijn, rule_polis, rule_historie, rule_toedracht, rule_documentatie, rule_voertuig, rule_dekking, rule_relatie,
 ]

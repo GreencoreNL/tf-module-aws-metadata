@@ -23,7 +23,7 @@ import json
 from .report import MAIL_NIVEAUS, render_email, render_html, report_title, to_json
 from .rules import RuleContext
 from .scoring import assess
-from .sources.context import PolicyLookup, customers_from_json, zoho_customer_lookup
+from .sources.context import CoverageLookup, PolicyLookup
 from .sources.history import ClaimRecord, HistoryIndex, bdx_rows_to_records, fraud_rows_to_records, read_csv, read_xlsx
 from .sources.rdw import RDWClient
 
@@ -65,12 +65,12 @@ def cmd_local(args):
     idx.add_claims([ClaimRecord(bron="eFNOL", referentie=c.folder_name, kenteken=c.plate, tegenpartij_kenteken=c.tegenpartij_kenteken,
                                 schadedatum=c.schadedatum, verzekerde=c.verzekerde, folder_id=c.folder_id) for c in cases], "eFNOL meldingen")
     policies = PolicyLookup.from_json(args.policies) if args.policies else None
-    customers = customers_from_json(args.customers) if args.customers else None
+    coverage = CoverageLookup.from_json(args.coverage) if args.coverage else None
     rdw = None if args.no_rdw else RDWClient()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     for c in cases:
-        ctx = RuleContext(history=idx, rdw=rdw, policies=policies, customers=customers, today=date.today())
+        ctx = RuleContext(history=idx, rdw=rdw, policies=policies, coverage=coverage, today=date.today())
         a = assess(c, ctx)
         name = report_title(a)
         (out / f"{name}.html").write_text(render_html(a), encoding="utf-8")
@@ -85,8 +85,7 @@ def cmd_drive(args):
 
     drive = Drive(args.credentials)
     policies = PolicyLookup.from_json(args.policies) if args.policies else None
-    customers = zoho_customer_lookup() if os.environ.get("ZOHO_REFRESH_TOKEN") else None
-    results = run(drive, args.root, rdw=RDWClient(), policies=policies, customers=customers, bdx_sheet=args.bdx_sheet,
+    results = run(drive, args.root, rdw=RDWClient(), policies=policies, bdx_sheet=args.bdx_sheet,
                   fraud_files=args.fraud_file, force=args.force, dry_run=args.dry_run)
     for a in results:
         print(f"{a.niveau:9} {a.score:3}  {a.claim.folder_name}")
@@ -112,7 +111,7 @@ def main(argv=None):
     l.add_argument("--bdx")
     l.add_argument("--fraud", action="append")
     l.add_argument("--policies")
-    l.add_argument("--customers", help="JSON met verzekerden zoals in Zoho gevonden")
+    l.add_argument("--coverage", help="JSON per kenteken: staat het in de dekkingsbestanden (zie README)")
     l.add_argument("--no-rdw", action="store_true")
     l.add_argument("--out", default="rapporten")
     l.set_defaults(func=cmd_local)

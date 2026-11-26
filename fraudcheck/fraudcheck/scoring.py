@@ -37,7 +37,9 @@ ACTIES = {
     "V02_geen_wam_rdw": "Controleer de verzekeringsstatus bij RDW en polis.",
     "V04_export": "Ga na of het voertuig nog in Nederland is. Niet uitkeren zonder inspectie.",
     "R01_verzekerde_onvolledig": "Laat de volledige naam van de verzekerde en het polisnummer bevestigen.",
-    "R02_verzekerde_onbekend_crm": "Koppel de melding aan het juiste wagenpark en polis.",
+    "V07_niet_in_dekkingsbestand": "Controleer in LoxxoTech Admin of het voertuig op schadedatum op een polis stond.",
+    "V08_pas_na_schade_in_dekkingsbestand": "Toets dekking. Het voertuig lijkt pas na de schade te zijn aangemeld.",
+    "V09_kort_voor_schade_in_dekkingsbestand": "Vraag foto's van het voertuig bij aanmelden en toets of de schade al bestond.",
 }
 
 

@@ -174,11 +174,30 @@ def test_late_melding_week():
     assert "T03_late_melding_7" in codes(assess(melding(schadedatum="12-11-2026"), RuleContext()))
 
 
-def test_crm_zoekt_per_naamdeel():
-    from fraudcheck.sources.context import CustomerInfo, CustomerLookup
-    cl = CustomerLookup(lambda n: CustomerInfo(naam=n) if n == "Jansen Transport B.V." else CustomerInfo(naam=n, bekend=False))
-    c = melding(verzekerde="Jansen Transport B.V. / Piet Jansen")
-    assert "R02_verzekerde_onbekend_crm" not in codes(assess(c, RuleContext(customers=cl)))
+def test_dekkingsbestand():
+    from fraudcheck.sources.context import CoverageInfo, CoverageLookup
+    niet = assess(melding(), RuleContext(coverage=CoverageLookup({})))
+    assert "V07_niet_in_dekkingsbestand" in codes(niet)
+    na = assess(melding(), RuleContext(coverage=CoverageLookup({"AB123C": CoverageInfo(na_schade=True, eerst_gezien=date(2026, 11, 23))})))
+    assert "V08_pas_na_schade_in_dekkingsbestand" in codes(na) and na.niveau != "Laag"
+    ok = assess(melding(), RuleContext(coverage=CoverageLookup({"AB123C": CoverageInfo(voor_schade=True, eerst_gezien=date(2026, 7, 2))})))
+    assert not {"V07_niet_in_dekkingsbestand", "V08_pas_na_schade_in_dekkingsbestand", "V09_kort_voor_schade_in_dekkingsbestand"} & codes(ok)
+
+
+def test_bekend_uit_bdx_telt_als_gedekt():
+    from fraudcheck.sources.context import CoverageLookup
+    h = HistoryIndex()
+    h.add_claims([ClaimRecord(bron="BDX", referentie="A1", kenteken="AB123C", schadedatum=date(2024, 1, 1))], "t")
+    assert "V07_niet_in_dekkingsbestand" not in codes(assess(melding(), RuleContext(history=h, coverage=CoverageLookup({}))))
+
+
+def test_gewone_aanrijding_met_kleine_gaten_is_laag():
+    """Zoals Z-383-HL: verzekerd, formulier en foto aanwezig, alleen tegenpartij kenteken onbekend en een week later gemeld."""
+    from fraudcheck.sources.context import CoverageInfo, CoverageLookup
+    c = melding(schadedatum="12-11-2026", toedracht="tegenpartij reed tegen mij aan terwijl ik stilstond")
+    c.attachments += [Attachment(name="foto.jpg", mime_type="image/jpeg"), Attachment(name="Schadeformulier.pdf", mime_type="application/pdf")]
+    a = assess(c, RuleContext(history=HistoryIndex(), coverage=CoverageLookup({"AB123C": CoverageInfo(voor_schade=True)})))
+    assert a.niveau == "Laag", [(s.code, s.gewicht) for s in a.signals]
 
 
 def test_mail_alleen_inhoud_klopt():
@@ -186,3 +205,10 @@ def test_mail_alleen_inhoud_klopt():
     m = render_email(assess(melding(schadedatum="26-11-2026"), RuleContext()))
     assert m["subject"].startswith("Fraude-indicatie")
     assert "{RAPPORT_URL}" in m["html"] and "{MAP_URL}" in m["text"]
+
+
+def test_eigen_efnol_melding_bewijst_geen_dekking():
+    from fraudcheck.sources.context import CoverageLookup
+    h = HistoryIndex()
+    h.add_claims([ClaimRecord(bron="eFNOL", referentie="case", kenteken="AB123C", folder_id="f1")], "eFNOL")
+    assert "V07_niet_in_dekkingsbestand" in codes(assess(melding(), RuleContext(history=h, coverage=CoverageLookup({}))))
