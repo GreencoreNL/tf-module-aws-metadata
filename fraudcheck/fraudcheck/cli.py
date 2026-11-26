@@ -11,7 +11,7 @@ import argparse
 import logging
 import os
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from .models import Attachment
@@ -91,6 +91,19 @@ def cmd_drive(args):
         print(f"{a.niveau:9} {a.score:3}  {a.claim.folder_name}")
 
 
+def cmd_dossier(args):
+    from .dossier import render_dossier_html
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    now = datetime.now()
+    for f in args.analyses:
+        d = json.loads(Path(f).read_text(encoding="utf-8"))
+        name = f"Dossieranalyse {now:%Y-%m-%d} {d.get('kenteken', Path(f).stem)}"
+        (out / f"{name}.html").write_text(render_dossier_html(d, now), encoding="utf-8")
+        print(name)
+
+
 def main(argv=None):
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     ap = argparse.ArgumentParser(prog="fraudcheck")
@@ -115,6 +128,11 @@ def main(argv=None):
     l.add_argument("--no-rdw", action="store_true")
     l.add_argument("--out", default="rapporten")
     l.set_defaults(func=cmd_local)
+
+    ds = sub.add_parser("dossier", help="Maak een dossieranalyse rapport van een analyse JSON")
+    ds.add_argument("analyses", nargs="+")
+    ds.add_argument("--out", default="rapporten")
+    ds.set_defaults(func=cmd_dossier)
 
     args = ap.parse_args(argv)
     if args.cmd == "drive" and args.fraud_file is None:

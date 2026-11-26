@@ -64,3 +64,17 @@ Een kenteken dat ontbreekt is nergens gevonden. De geplande run vult dit door in
 `subject:Dekkingsbestand` met het kenteken, voor en na de schadedatum.
 
 Zoho CRM wordt niet gebruikt. Daar staan vooral nieuwe deals en geen volledig klantenbestand, dus 'niet gevonden' zegt niets.
+
+## Dossieranalyse
+
+Naast de fraude-indicatie kan per case een `Dossieranalyse` worden gemaakt: samenvatting, aansprakelijkheid,
+voorrang, letsel (vak 3 op het aanrijdingsformulier), zwaarte, prioriteit, reservering, aandachtspunten en
+volgende stappen voor de behandelaar.
+
+Claude leest de melding, het aanrijdingsformulier (ook de kruisjes en de schets) en de foto's en schrijft een
+JSON volgens `DOSSIER_VOORBEELD` in `fraudcheck/dossier.py`. De tool bepaalt zelf de prioriteit
+(Spoed bij letsel, Hoog bij niet rijdbaar, zware schade of oranje of rode fraude-indicatie) en maakt het rapport:
+
+```bash
+python -m fraudcheck dossier analyse.json --out rapporten
+```

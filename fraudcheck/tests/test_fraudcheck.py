@@ -212,3 +212,17 @@ def test_eigen_efnol_melding_bewijst_geen_dekking():
     h = HistoryIndex()
     h.add_claims([ClaimRecord(bron="eFNOL", referentie="case", kenteken="AB123C", folder_id="f1")], "eFNOL")
     assert "V07_niet_in_dekkingsbestand" in codes(assess(melding(), RuleContext(history=h, coverage=CoverageLookup({}))))
+
+
+def test_dossier_prioriteit_en_render():
+    from fraudcheck.dossier import DOSSIER_VOORBEELD, bepaal_prioriteit, render_dossier_html
+    import copy
+    d = copy.deepcopy(DOSSIER_VOORBEELD)
+    assert bepaal_prioriteit(d)[0] == "Normaal"
+    d["formulier"]["gewonden_aangekruist"] = True
+    assert bepaal_prioriteit(d)[0] == "Spoed"
+    d["formulier"]["gewonden_aangekruist"] = False
+    d["beoordeling"]["rijdbaar"] = False
+    assert bepaal_prioriteit(d)[0] == "Hoog"
+    html = render_dossier_html(d)
+    assert "Dossieranalyse" in html and "Reservering" in html
