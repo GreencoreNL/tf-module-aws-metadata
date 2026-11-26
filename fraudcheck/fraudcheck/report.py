@@ -15,7 +15,7 @@ EXPERT = "#002E5D"
 EASY = "#CAE2FF"
 PASSION = "#FF5055"
 NIVEAU_KLEUR = {"Laag": ("#1E7B4F", "#E3F4EA"), "Verhoogd": ("#9A5B00", "#FFF1D6"), "Hoog": (PASSION, "#FFE3E4")}
-FONT = "font-family:'Work Sans',Arial,Helvetica,sans-serif"
+FONT = "font-family:Work Sans,Arial,sans-serif"
 
 
 def _e(s) -> str:
@@ -27,28 +27,66 @@ def report_title(a: Assessment) -> str:
     return f"Fraude-indicatie {a.gegenereerd_op:%Y-%m-%d} {format_plate(c.kenteken)} {a.niveau}"
 
 
+def _logo_data_uri() -> str:
+    import base64
+    from pathlib import Path
+
+    path = Path(__file__).parent / "assets" / "loxxo-logo-expert-blue.png"
+    try:
+        return "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode()
+    except OSError:
+        return ""
+
+
+LINE = "#E3E6EC"
+MUTED = "#5A6B80"
+LABEL_BG = "#F4F7FB"
+NOBORDER = "border:1px solid #FFFFFF"
+
+
+def _cell(content: str, style: str = "", width: str = "") -> str:
+    w = f" width='{width}'" if width else ""
+    return f"<td{w} style='padding:7px 10px;border:1px solid {LINE};vertical-align:top;text-align:left;{style}'>{content}</td>"
+
+
+def _h2(text: str) -> str:
+    return f"<h2 style=\"{FONT};color:{EXPERT};font-size:15px;font-weight:bold;margin:26px 0 8px\">{_e(text)}</h2>"
+
+
 def render_html(a: Assessment) -> str:
     c = a.claim
     fg, bg = NIVEAU_KLEUR[a.niveau]
-    rows_signals = "".join(
-        f"<tr><td style='padding:8px 10px;border-bottom:1px solid #E3E6EC;vertical-align:top;width:34%'>"
-        f"<b>{_e(s.titel)}</b>{' <span style=\"color:' + PASSION + ';font-weight:bold\">rode vlag</span>' if s.hard else ''}<br>"
-        f"<span style='color:#5A6B80;font-size:12px'>{_e(s.categorie)} · {_e(s.code.split('_')[0])}</span></td>"
-        f"<td style='padding:8px 10px;border-bottom:1px solid #E3E6EC;vertical-align:top'>{_e(s.toelichting)}</td>"
-        f"<td style='padding:8px 10px;border-bottom:1px solid #E3E6EC;vertical-align:top;text-align:right;width:40px'>+{s.gewicht}</td></tr>"
-        for s in a.signals
-    ) or "<tr><td style='padding:8px 10px' colspan='3'>Geen signalen gevonden.</td></tr>"
+    plate = format_plate(c.kenteken)
+    logo = _logo_data_uri()
+    logo_html = (f"<img src='{logo}' width='130' height='36' alt='Loxxo'>" if logo
+                 else f"<span style='font-size:24px;font-weight:bold;color:{EXPERT}'>Loxxo</span>")
 
-    rows_checks = "".join(
-        f"<tr><td style='padding:6px 10px;border-bottom:1px solid #E3E6EC;width:34%'>{_e(k.bron)}</td>"
-        f"<td style='padding:6px 10px;border-bottom:1px solid #E3E6EC;width:110px;color:{'#1E7B4F' if k.status == 'ok' else ('#9A5B00' if k.status == 'niet beschikbaar' else PASSION)}'>{_e(k.status)}</td>"
-        f"<td style='padding:6px 10px;border-bottom:1px solid #E3E6EC'>{_e(k.detail)}</td></tr>"
-        for k in a.checks
-    )
-    acties = "".join(f"<li style='margin-bottom:4px'>{_e(x)}</li>" for x in a.vervolgacties)
+    sterkste = (a.signals[0].titel[0].lower() + a.signals[0].titel[1:]) if a.signals else "geen signalen"
+    conclusie = {
+        "Hoog": f"Behandel deze schade niet regulier. Voer eerst de vervolgacties uit. Zwaarste signaal: {sterkste}.",
+        "Verhoogd": f"Behandel deze schade met extra aandacht en voer de vervolgacties uit voor toezegging of uitkering. Zwaarste signaal: {sterkste}.",
+        "Laag": "Geen aanleiding voor extra onderzoek. Normale behandeling.",
+    }[a.niveau]
+
+    th = f"padding:7px 10px;border:1px solid {EXPERT};background:{EXPERT};color:#FFFFFF;font-weight:bold;text-align:left"
+    if a.signals:
+        rows = "".join(
+            "<tr>"
+            + _cell(f"<b>{_e(s.titel)}</b>"
+                    + (f"<br><span style='color:{PASSION};font-weight:bold;font-size:11px'>RODE VLAG</span>" if s.hard else "")
+                    + f"<br><span style='color:{MUTED};font-size:11px'>{_e(s.categorie)}</span>", width="33%")
+            + _cell(_e(s.toelichting), width="55%")
+            + _cell(f"+{s.gewicht}", "text-align:right;white-space:nowrap", width="12%")
+            + "</tr>"
+            for s in a.signals)
+        signal_table = (f"<table style='width:100%;border-collapse:collapse;font-size:12px'>"
+                        f"<tr><td width='33%' style='{th}'>Signaal</td><td width='55%' style='{th}'>Toelichting</td>"
+                        f"<td width='12%' style='{th};text-align:right;white-space:nowrap'>Punten</td></tr>{rows}</table>")
+    else:
+        signal_table = "<p>Geen signalen gevonden.</p>"
 
     gegevens = [
-        ("Verzekerde", c.verzekerde), ("Kenteken", format_plate(c.kenteken)),
+        ("Verzekerde", c.verzekerde), ("Kenteken", plate),
         ("Schadedatum", c.schadedatum.strftime("%d-%m-%Y") if c.schadedatum else "onbekend"),
         ("Tijdstip", c.schadetijd or "niet opgegeven"),
         ("Gemeld op", c.gemeld_op.strftime("%d-%m-%Y %H:%M") if c.gemeld_op else "onbekend"),
@@ -57,46 +95,51 @@ def render_html(a: Assessment) -> str:
         ("Melder", " · ".join(dict.fromkeys(x for x in (c.melder_naam, c.melder_bedrijf) if x))),
         ("Bijlagen", ", ".join(x.name for x in c.attachments) or "geen"),
     ]
-    rows_gegevens = "".join(
-        f"<tr><td style='padding:5px 10px;color:#5A6B80;width:34%;border-bottom:1px solid #E3E6EC'>{_e(k)}</td>"
-        f"<td style='padding:5px 10px;border-bottom:1px solid #E3E6EC'>{_e(v)}</td></tr>" for k, v in gegevens
-    )
+    gegevens_table = "<table style='width:100%;border-collapse:collapse;font-size:12px'>" + "".join(
+        "<tr>" + _cell(_e(k), f"background:{LABEL_BG};color:{MUTED}", width="30%") + _cell(_e(v), width="70%") + "</tr>"
+        for k, v in gegevens) + "</table>"
 
-    sterkste = (a.signals[0].titel[0].lower() + a.signals[0].titel[1:]) if a.signals else "geen signalen"
-    conclusie = {
-        "Hoog": f"Behandel deze schade niet regulier. Eerst de vervolgacties hieronder uitvoeren. Zwaarste signaal: {sterkste}.",
-        "Verhoogd": f"Behandel deze schade met extra aandacht en voer de vervolgacties uit voor toezegging of uitkering. Zwaarste signaal: {sterkste}.",
-        "Laag": "Geen aanleiding voor extra onderzoek. Normale behandeling.",
-    }[a.niveau]
+    status_kleur = {"ok": "#1E7B4F", "niet beschikbaar": "#9A5B00"}
+    checks_table = (f"<table style='width:100%;border-collapse:collapse;font-size:12px'>"
+                    f"<tr><td width='27%' style='{th}'>Bron</td><td width='21%' style='{th}'>Status</td><td width='52%' style='{th}'>Toelichting</td></tr>"
+                    + "".join("<tr>" + _cell(_e(k.bron), width="27%")
+                              + _cell(_e(k.status), f"color:{status_kleur.get(k.status, PASSION)};font-weight:bold;white-space:nowrap", width="21%")
+                              + _cell(_e(k.detail), width="52%") + "</tr>" for k in a.checks)
+                    + "</table>")
+
+    acties = "".join(f"<li style='margin-bottom:5px'>{_e(x)}</li>" for x in a.vervolgacties)
 
     return f"""<!doctype html>
 <html lang="nl"><head><meta charset="utf-8"><title>{_e(report_title(a))}</title></head>
-<body style="{FONT};color:#1B2533;font-size:14px;max-width:760px;margin:0 auto;padding:16px;background:#FFFFFF">
-<table style="width:100%;border-collapse:collapse;background:{EXPERT};color:#FFFFFF">
-<tr><td style="padding:18px 20px"><span style="font-size:22px;font-weight:bold">Loxxo</span><br>
-<span style="font-size:13px;color:{EASY}">Fraude-indicatie schademelding</span></td>
-<td style="padding:18px 20px;text-align:right;font-size:13px;color:{EASY}">{_e(format_plate(c.kenteken))}<br>{a.gegenereerd_op:%d-%m-%Y %H:%M}</td></tr></table>
+<body style="{FONT};color:#1B2533;font-size:13px;max-width:760px;margin:0 auto;padding:16px;background:#FFFFFF">
 
-<table style="width:100%;border-collapse:collapse;margin:16px 0;background:{bg}">
-<tr><td style="padding:16px 20px;width:150px;vertical-align:middle">
-<span style="font-size:12px;color:#5A6B80">Indicatie</span><br>
-<span style="font-size:26px;font-weight:bold;color:{fg}">{_e(a.niveau)}</span><br>
-<span style="font-size:13px;color:{fg}">score {a.score} van 100</span></td>
-<td style="padding:16px 20px;vertical-align:middle">{_e(conclusie)}</td></tr></table>
+<table style="width:100%;border-collapse:collapse"><tr>
+<td width="50%" style="{NOBORDER};padding:0 0 10px 0;vertical-align:middle;text-align:left">{logo_html}</td>
+<td width="50%" style="{NOBORDER};padding:0 0 10px 0;vertical-align:middle;text-align:right;color:{MUTED};font-size:12px">
+Fraude-indicatie schademelding<br><b style="color:{EXPERT};font-size:15px">{_e(plate)}</b><br>{a.gegenereerd_op:%d-%m-%Y %H:%M}</td>
+</tr></table>
+<table style="width:100%;border-collapse:collapse"><tr><td style="border:1px solid {PASSION};background:{PASSION};padding:0;font-size:2px;line-height:3px">&nbsp;</td></tr></table>
 
-<h2 style="{FONT};color:{EXPERT};font-size:17px;margin:22px 0 6px">Vervolgacties</h2>
+<table style="width:100%;border-collapse:collapse;margin-top:18px"><tr>
+<td style="border:1px solid {bg};border-left:6px solid {fg};background:{bg};padding:14px 18px;text-align:left">
+<span style="font-size:12px;color:{MUTED}">Indicatie</span><br>
+<span style="font-size:22px;font-weight:bold;color:{fg};white-space:nowrap">{_e(a.niveau)}</span>
+<span style="font-size:13px;color:{fg};white-space:nowrap">&nbsp;&nbsp;score {a.score} van 100</span><br>
+<span style="font-size:13px;color:#1B2533">{_e(conclusie)}</span></td></tr></table>
+
+{_h2("Vervolgacties")}
 <ol style="margin:0;padding-left:20px">{acties}</ol>
 
-<h2 style="{FONT};color:{EXPERT};font-size:17px;margin:22px 0 6px">Signalen ({len(a.signals)})</h2>
-<table style="width:100%;border-collapse:collapse">{rows_signals}</table>
+{_h2(f"Signalen ({len(a.signals)})")}
+{signal_table}
 
-<h2 style="{FONT};color:{EXPERT};font-size:17px;margin:22px 0 6px">Gegevens uit de melding</h2>
-<table style="width:100%;border-collapse:collapse">{rows_gegevens}</table>
+{_h2("Gegevens uit de melding")}
+{gegevens_table}
 
-<h2 style="{FONT};color:{EXPERT};font-size:17px;margin:22px 0 6px">Uitgevoerde controles</h2>
-<table style="width:100%;border-collapse:collapse">{rows_checks}</table>
+{_h2("Uitgevoerde controles")}
+{checks_table}
 
-<p style="font-size:12px;color:#5A6B80;margin-top:24px;border-top:2px solid {EASY};padding-top:10px">
+<p style="font-size:11px;color:{MUTED};margin-top:26px">
 Deze indicatie is automatisch opgesteld op basis van de melding, de bijlagen en interne en openbare bronnen.
 Een signaal is een aanwijzing en geen bewijs. Gebruik de indicatie om te bepalen welke vragen je stelt en
 neem geen besluit over dekking of uitkering op basis van alleen deze score. Drempels: Verhoogd vanaf 25,
