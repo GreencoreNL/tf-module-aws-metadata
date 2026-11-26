@@ -38,7 +38,7 @@ def _load_local_case(path: Path):
         return None
     claim = parse_melding_html(melding.read_text(encoding="utf-8"), folder_id=str(path), folder_name=path.name)
     for p in path.iterdir():
-        if p == melding or p.name.startswith("Fraude-indicatie"):
+        if p == melding or p.name.startswith(("Fraude-indicatie", "Dossieranalyse", "Mail ")):
             continue
         if p.suffix == ".txt" and p.stem.endswith(".ocr"):
             continue
@@ -104,6 +104,20 @@ def cmd_dossier(args):
         print(name)
 
 
+def cmd_intake(args):
+    """Maakt casemappen van schademeldingen per mail. Invoer: JSON met melding, mailtekst en bijlagen (zie README)."""
+    from .intake import write_case
+
+    for f in args.mails:
+        d = json.loads(Path(f).read_text(encoding="utf-8"))
+        m = dict(d["melding"])
+        m["ontvangen"] = datetime.fromisoformat(m["ontvangen"])
+        att = {k: Path(v) for k, v in (d.get("bijlagen") or {}).items()}
+        m.setdefault("bijlagen", list(att))
+        folder = write_case(Path(args.out), m, d.get("mailtekst", ""), d.get("afzender", ""), d.get("aan", ""), att)
+        print(folder)
+
+
 def main(argv=None):
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     ap = argparse.ArgumentParser(prog="fraudcheck")
@@ -133,6 +147,11 @@ def main(argv=None):
     ds.add_argument("analyses", nargs="+")
     ds.add_argument("--out", default="rapporten")
     ds.set_defaults(func=cmd_dossier)
+
+    it = sub.add_parser("intake", help="Maak casemappen van schademeldingen uit de claims@ mailbox")
+    it.add_argument("mails", nargs="+")
+    it.add_argument("--out", default="cases")
+    it.set_defaults(func=cmd_intake)
 
     args = ap.parse_args(argv)
     if args.cmd == "drive" and args.fraud_file is None:

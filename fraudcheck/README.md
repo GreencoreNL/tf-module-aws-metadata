@@ -78,3 +78,15 @@ JSON volgens `DOSSIER_VOORBEELD` in `fraudcheck/dossier.py`. De tool bepaalt zel
 ```bash
 python -m fraudcheck dossier analyse.json --out rapporten
 ```
+
+## Meldingen uit de claims@ mailbox
+
+`python -m fraudcheck intake mail.json --out cases` maakt van een schademelding per mail een casemap met
+dezelfde opbouw als de eFNOL: een `Melding ... .html` in het eFNOL formaat, een kopie van de originele mail
+(`Mail ... .html`) en alle bijlagen. De map heet `<ontvangstdatum> <kenteken> <verzekerde> (mail)`.
+Daarna werken `local` (fraude-indicatie) en `dossier` (dossieranalyse) precies zoals bij de eFNOL.
+
+Wat telt als nieuwe melding: de eerste mail over een schade van een verzekerde, tussenpersoon of tegenpartij
+(aansprakelijkstelling). Niet: meldingen via Typeform (die lopen al via de eFNOL), post van Van Ameyde, Wakam,
+Carglass en ANWB, dekkingsbestanden en vervolgmails op een schade die al een casemap heeft.
+De Gmail bericht ID staat in de melding, zodat een mail nooit twee keer wordt verwerkt.

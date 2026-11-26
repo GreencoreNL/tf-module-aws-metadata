@@ -221,6 +221,9 @@ def test_dossier_prioriteit_en_render():
     assert bepaal_prioriteit(d)[0] == "Normaal"
     d["formulier"]["gewonden_aangekruist"] = True
     assert bepaal_prioriteit(d)[0] == "Spoed"
+    d["beoordeling"]["letsel_partij"] = "eigen bestuurder"
+    assert bepaal_prioriteit(d)[0] == "Hoog"
+    d["beoordeling"]["letsel_partij"] = ""
     d["formulier"]["gewonden_aangekruist"] = False
     d["beoordeling"]["rijdbaar"] = False
     assert bepaal_prioriteit(d)[0] == "Hoog"
@@ -235,3 +238,19 @@ def test_dossier_zonder_formulier_zegt_niets_over_vak3():
     d["formulier"] = {"aanwezig": False}
     html = render_dossier_html(d)
     assert "Nee aangekruist" not in html and "geen formulier" in html
+
+
+def test_intake_maakt_melding_die_de_parser_leest(tmp_path):
+    from datetime import datetime
+    from fraudcheck.intake import write_case
+    from fraudcheck.cli import _load_local_case
+    m = {"verzekerde": "MO-EV Holding", "kenteken": "FTD-12-Z", "schadedatum": "11-10-2026", "tijdstip": "18:40",
+         "wat_gebeurd": "Aanrijding met een ander voertuig", "tegenpartij": "Ja", "kenteken_tegenpartij": "06-ZD-PZ",
+         "toedracht": "Bezorger stak over en werd linksachter geraakt", "melder_naam": "T. Peeters", "melder_bedrijf": "Remo",
+         "ontvangen": datetime(2026, 11, 2, 16, 21), "onderwerp": "Schademelding FTD-12-Z aanrijding", "message_id": "abc"}
+    pdf = tmp_path / "x.pdf"; pdf.write_bytes(b"%PDF")
+    folder = write_case(tmp_path / "cases", m, "tekst", "a@b.nl", "claims@loxxo.nl", {"Bilal.pdf": pdf})
+    c = _load_local_case(folder)
+    assert c.plate == "FTD12Z" and c.tegenpartij_kenteken == "06ZDPZ" and c.schadetijd == "18:40"
+    assert c.gemeld_op == datetime(2026, 11, 2, 16, 21)
+    assert [a.name for a in c.attachments] == ["Bilal.pdf"]   # de mailkopie telt niet als bijlage

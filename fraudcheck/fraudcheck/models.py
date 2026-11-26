@@ -59,7 +59,11 @@ class Attachment:
     @property
     def is_form(self) -> bool:
         n = self.name.lower()
-        return "formulier" in n or "aanrijding" in n or "europees" in n
+        if n.startswith(("mail ", "melding ", "fraude-indicatie", "dossieranalyse")):
+            return False
+        t = (self.text or "").lower()
+        return ("formulier" in n or "aanrijding" in n or "europees" in n
+                or "aanrijdingsformulier" in t or "schadeaangifte" in t)
 
 
 @dataclass

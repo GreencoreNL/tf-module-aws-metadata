@@ -50,7 +50,10 @@ def bepaal_prioriteit(d: dict) -> tuple[str, str]:
     b = d.get("beoordeling", {})
     f = d.get("formulier", {})
     if b.get("letsel") or f.get("gewonden_aangekruist"):
-        return "Spoed", "Er is (mogelijk) letsel. Binnen 24 uur contact met de verzekerde en letselschade traject starten."
+        if (b.get("letsel_partij") or "").lower() == "eigen bestuurder":
+            return "Hoog", ("Letsel bij de eigen bestuurder. Binnen 2 werkdagen contact opnemen en nagaan of er een "
+                            "SVI of inzittendendekking op de polis zit.")
+        return "Spoed", "Er is (mogelijk) letsel bij een derde. Binnen 24 uur contact opnemen en het letselschade traject starten."
     if b.get("rijdbaar") is False or (b.get("zwaarte") or "").lower() == "zwaar":
         return "Hoog", "Voertuig niet rijdbaar of zware schade. Binnen 2 werkdagen expertise en vervangend vervoer regelen."
     fraude = (d.get("fraude_indicatie") or {}).get("niveau")

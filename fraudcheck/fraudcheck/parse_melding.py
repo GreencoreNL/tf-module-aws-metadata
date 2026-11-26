@@ -118,6 +118,8 @@ def parse_melding_html(content: str, folder_id: str = "", folder_name: str = "")
         if p.lower().startswith("nog niet aangeleverd"):
             claim.nog_niet_aangeleverd = p.split(":", 1)[-1].strip()
 
+    from .models import normalize_plate
+    claim.tegenpartij_kenteken = normalize_plate(claim.tegenpartij_kenteken)
     # Een kenteken van de tegenpartij in de vrije tekst van de toedracht
     if not claim.tegenpartij_kenteken:
         own = claim.plate
