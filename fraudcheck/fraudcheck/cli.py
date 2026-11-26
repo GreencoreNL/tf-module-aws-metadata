@@ -18,7 +18,9 @@ from .models import Attachment
 from .parse_form import parse_form_text
 from .parse_melding import parse_melding_html
 from .pipeline import build_history, exif_datetime, run
-from .report import render_html, report_title, to_json
+import json
+
+from .report import MAIL_NIVEAUS, render_email, render_html, report_title, to_json
 from .rules import RuleContext
 from .scoring import assess
 from .sources.context import PolicyLookup, customers_from_json, zoho_customer_lookup
@@ -73,6 +75,8 @@ def cmd_local(args):
         name = report_title(a)
         (out / f"{name}.html").write_text(render_html(a), encoding="utf-8")
         (out / f"{name}.json").write_text(to_json(a), encoding="utf-8")
+        if a.niveau in MAIL_NIVEAUS:
+            (out / f"{name}.mail.json").write_text(json.dumps(render_email(a), ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"{a.niveau:9} {a.score:3}  {c.folder_name}")
 
 

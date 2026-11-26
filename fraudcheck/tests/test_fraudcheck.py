@@ -179,3 +179,10 @@ def test_crm_zoekt_per_naamdeel():
     cl = CustomerLookup(lambda n: CustomerInfo(naam=n) if n == "Jansen Transport B.V." else CustomerInfo(naam=n, bekend=False))
     c = melding(verzekerde="Jansen Transport B.V. / Piet Jansen")
     assert "R02_verzekerde_onbekend_crm" not in codes(assess(c, RuleContext(customers=cl)))
+
+
+def test_mail_alleen_inhoud_klopt():
+    from fraudcheck.report import render_email
+    m = render_email(assess(melding(schadedatum="26-11-2026"), RuleContext()))
+    assert m["subject"].startswith("Fraude-indicatie")
+    assert "{RAPPORT_URL}" in m["html"] and "{MAP_URL}" in m["text"]

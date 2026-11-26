@@ -114,3 +114,46 @@ def to_json(a: Assessment) -> str:
     for att in d["claim"].get("attachments", []):
         att.pop("text", None)
     return json.dumps(d, default=default, ensure_ascii=False, indent=2)
+
+
+MAIL_NIVEAUS = ("Verhoogd", "Hoog")
+
+
+def render_email(a: Assessment) -> dict:
+    """Korte waarschuwingsmail voor claims@loxxo.nl bij Verhoogd of Hoog.
+
+    De links zijn placeholders {RAPPORT_URL} en {MAP_URL}. Die vult de run in na het uploaden van het rapport.
+    """
+    c = a.claim
+    fg, bg = NIVEAU_KLEUR[a.niveau]
+    kleur = "rood" if a.niveau == "Hoog" else "oranje"
+    plate = format_plate(c.kenteken)
+    subject = f"Fraude-indicatie {a.niveau}: {plate} {c.verzekerde} (score {a.score})"
+    top = a.signals[:3]
+    acties = a.vervolgacties[:3]
+    sd = c.schadedatum.strftime("%d-%m-%Y") if c.schadedatum else "onbekend"
+
+    li_sig = "".join(f"<li style='margin-bottom:4px'><b>{_e(s.titel)}</b><br><span style='color:#5A6B80'>{_e(s.toelichting)}</span></li>" for s in top)
+    li_act = "".join(f"<li style='margin-bottom:4px'>{_e(x)}</li>" for x in acties)
+    html_body = f"""<div style="{FONT};font-size:14px;color:#1B2533;max-width:640px">
+<table style="width:100%;border-collapse:collapse;background:{EXPERT};color:#FFFFFF"><tr>
+<td style="padding:14px 18px"><b style="font-size:18px">Loxxo</b><br><span style="color:{EASY};font-size:13px">Fraude-indicatie schademelding</span></td></tr></table>
+<p>Hoi team,</p>
+<p>De fraudecheck geeft een <b style="color:{fg}">{kleur} signaal</b> voor de schade van <b>{_e(c.verzekerde)}</b> met kenteken <b>{_e(plate)}</b> (schadedatum {sd}).</p>
+<table style="width:100%;border-collapse:collapse;background:{bg}"><tr><td style="padding:12px 16px">
+<b style="font-size:20px;color:{fg}">{_e(a.niveau)}</b> <span style="color:{fg}">score {a.score} van 100</span></td></tr></table>
+<p style="margin-bottom:4px"><b>Zwaarste signalen</b></p><ul style="margin-top:0;padding-left:20px">{li_sig}</ul>
+<p style="margin-bottom:4px"><b>Eerst doen</b></p><ol style="margin-top:0;padding-left:20px">{li_act}</ol>
+<p><a href="{{RAPPORT_URL}}" style="color:{EXPERT};font-weight:bold">Open het volledige rapport</a> · <a href="{{MAP_URL}}" style="color:{EXPERT}">Open de casemap</a></p>
+<p style="font-size:12px;color:#5A6B80">Een signaal is een aanwijzing en geen bewijs. Neem geen besluit over dekking of uitkering op basis van alleen deze score.</p>
+</div>"""
+    text = "\n".join([
+        "Hoi team,", "",
+        f"De fraudecheck geeft een {kleur} signaal voor de schade van {c.verzekerde} met kenteken {plate} (schadedatum {sd}).",
+        f"Indicatie {a.niveau}, score {a.score} van 100.", "", "Zwaarste signalen",
+        *[f"  {s.titel}: {s.toelichting}" for s in top], "", "Eerst doen",
+        *[f"  {i}. {x}" for i, x in enumerate(acties, 1)], "",
+        "Rapport: {RAPPORT_URL}", "Casemap: {MAP_URL}", "",
+        "Een signaal is een aanwijzing en geen bewijs.",
+    ])
+    return {"subject": subject, "html": html_body, "text": text}
