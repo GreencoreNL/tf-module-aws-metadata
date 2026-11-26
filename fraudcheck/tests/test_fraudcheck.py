@@ -176,8 +176,10 @@ def test_late_melding_week():
 
 def test_dekkingsbestand():
     from fraudcheck.sources.context import CoverageInfo, CoverageLookup
-    niet = assess(melding(), RuleContext(coverage=CoverageLookup({})))
+    niet = assess(melding(), RuleContext(coverage=CoverageLookup({"AB123C": CoverageInfo()})))
     assert "V07_niet_in_dekkingsbestand" in codes(niet)
+    niet_gezocht = assess(melding(), RuleContext(coverage=CoverageLookup({})))
+    assert "V07_niet_in_dekkingsbestand" not in codes(niet_gezocht)
     na = assess(melding(), RuleContext(coverage=CoverageLookup({"AB123C": CoverageInfo(na_schade=True, eerst_gezien=date(2026, 11, 23))})))
     assert "V08_pas_na_schade_in_dekkingsbestand" in codes(na) and na.niveau != "Laag"
     ok = assess(melding(), RuleContext(coverage=CoverageLookup({"AB123C": CoverageInfo(voor_schade=True, eerst_gezien=date(2026, 7, 2))})))
@@ -188,7 +190,8 @@ def test_bekend_uit_bdx_telt_als_gedekt():
     from fraudcheck.sources.context import CoverageLookup
     h = HistoryIndex()
     h.add_claims([ClaimRecord(bron="BDX", referentie="A1", kenteken="AB123C", schadedatum=date(2024, 1, 1))], "t")
-    assert "V07_niet_in_dekkingsbestand" not in codes(assess(melding(), RuleContext(history=h, coverage=CoverageLookup({}))))
+    from fraudcheck.sources.context import CoverageInfo
+    assert "V07_niet_in_dekkingsbestand" not in codes(assess(melding(), RuleContext(history=h, coverage=CoverageLookup({"AB123C": CoverageInfo()}))))
 
 
 def test_gewone_aanrijding_met_kleine_gaten_is_laag():
@@ -211,7 +214,8 @@ def test_eigen_efnol_melding_bewijst_geen_dekking():
     from fraudcheck.sources.context import CoverageLookup
     h = HistoryIndex()
     h.add_claims([ClaimRecord(bron="eFNOL", referentie="case", kenteken="AB123C", folder_id="f1")], "eFNOL")
-    assert "V07_niet_in_dekkingsbestand" in codes(assess(melding(), RuleContext(history=h, coverage=CoverageLookup({}))))
+    from fraudcheck.sources.context import CoverageInfo
+    assert "V07_niet_in_dekkingsbestand" in codes(assess(melding(), RuleContext(history=h, coverage=CoverageLookup({"AB123C": CoverageInfo()}))))
 
 
 def test_dossier_prioriteit_en_render():
@@ -254,3 +258,17 @@ def test_intake_maakt_melding_die_de_parser_leest(tmp_path):
     assert c.plate == "FTD12Z" and c.tegenpartij_kenteken == "06ZDPZ" and c.schadetijd == "18:40"
     assert c.gemeld_op == datetime(2026, 11, 2, 16, 21)
     assert [a.name for a in c.attachments] == ["Bilal.pdf"]   # de mailkopie telt niet als bijlage
+
+
+def test_signalen_uit_stukken_tellen_mee_met_vast_gewicht():
+    c = melding()
+    c.extra_signalen = [{"code": "S01_rol_tegenstrijdig_met_pv", "titel": "Passagier staat als bestuurder in pv", "toelichting": "x", "gewicht": 1},
+                        {"code": "ONBEKEND", "titel": "genegeerd"}]
+    a = assess(c, RuleContext())
+    s = [x for x in a.signals if x.code == "S01_rol_tegenstrijdig_met_pv"][0]
+    assert s.gewicht == 40 and s.hard and "ONBEKEND" not in codes(a)
+
+
+def test_wam_status_na_eigenaarswissel_telt_niet():
+    rdw = FakeRDW({"AB123C": {"wam_verzekerd": "Nee", "_datum_tenaamstelling": date(2026, 11, 22)}})
+    assert "V02_geen_wam_rdw" not in codes(assess(melding(), RuleContext(rdw=rdw)))

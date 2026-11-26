@@ -42,6 +42,9 @@ def _load_local_case(path: Path):
             continue
         if p.suffix == ".txt" and p.stem.endswith(".ocr"):
             continue
+        if p.name == "signalen.json":
+            claim.extra_signalen = json.loads(p.read_text(encoding="utf-8"))
+            continue
         mime = "image/jpeg" if p.suffix.lower() in (".jpg", ".jpeg") else ("application/pdf" if p.suffix.lower() == ".pdf" else "")
         att = Attachment(name=p.name, mime_type=mime, local_path=str(p))
         if att.is_photo:

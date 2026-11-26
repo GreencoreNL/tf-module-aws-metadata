@@ -138,7 +138,8 @@ class CoverageLookup:
 
     @classmethod
     def from_json(cls, path: str) -> "CoverageLookup":
-        """{"Z383HL": {"voor_schade": true, "na_schade": true, "eerst_gezien": "2026-07-02"}}. Ontbreekt een kenteken dan is het nergens gevonden."""
+        """{"Z383HL": {"voor_schade": true, "na_schade": true, "eerst_gezien": "2026-07-02"}, "HHG56K": {"voor_schade": false, "na_schade": false}}.
+        Neem elk opgezocht kenteken op, ook als het niet gevonden is. Een ontbrekend kenteken geldt als niet opgezocht."""
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
         return cls({normalize_plate(k): CoverageInfo(voor_schade=bool(v.get("voor_schade")), na_schade=bool(v.get("na_schade")),

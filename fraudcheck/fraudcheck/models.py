@@ -89,6 +89,7 @@ class Claim:
     nog_niet_aangeleverd: str = ""
     attachments: list[Attachment] = field(default_factory=list)
     form_fields: dict = field(default_factory=dict)  # uit het schadeformulier gehaalde velden
+    extra_signalen: list = field(default_factory=list)  # signalen die bij het lezen van de stukken zijn gevonden
     raw: dict = field(default_factory=dict)
 
     @property

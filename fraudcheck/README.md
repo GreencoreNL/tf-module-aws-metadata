@@ -90,3 +90,10 @@ Wat telt als nieuwe melding: de eerste mail over een schade van een verzekerde, 
 (aansprakelijkstelling). Niet: meldingen via Typeform (die lopen al via de eFNOL), post van Van Ameyde, Wakam,
 Carglass en ANWB, dekkingsbestanden en vervolgmails op een schade die al een casemap heeft.
 De Gmail bericht ID staat in de melding, zodat een mail nooit twee keer wordt verwerkt.
+
+## Signalen uit de stukken
+
+Sommige rode vlaggen staan alleen in brieven of een proces-verbaal, bijvoorbeeld een claimant die zegt passagier
+te zijn maar bij de politie als bestuurder staat. Zet die in `signalen.json` in de casemap:
+`[{"code": "S01_rol_tegenstrijdig_met_pv", "titel": "...", "toelichting": "..."}]`.
+Alleen codes uit `WEIGHTS` (S01 tot en met S07) tellen mee en het gewicht komt altijd uit de tool.

@@ -62,6 +62,14 @@ WEIGHTS = {
     # Relatie
     "R01_verzekerde_onvolledig": 6,
     "R04_melder_freemail_zakelijk": 3,
+    # Gevonden bij het lezen van de stukken (signalen.json in de casemap)
+    "S01_rol_tegenstrijdig_met_pv": 40,
+    "S02_alcohol_of_drugs": 30,
+    "S03_plaats_ongeval_verlaten": 25,
+    "S04_toedracht_tegenstrijdig_met_stukken": 20,
+    "S05_eenzijdig_ongeval_met_letselclaim": 10,
+    "S06_tenaamstelling_direct_na_schade": 10,
+    "S07_telefoongebruik": 10,
 }
 
 NACHT_START, NACHT_EIND = 22, 6
@@ -367,9 +375,10 @@ def rule_voertuig(claim: Claim, ctx: RuleContext) -> list[Signal]:
         return out
     ctx.checks.append(CheckResult("RDW", "ok", f"{rec.get('merk', '')} {rec.get('handelsbenaming', '')}, {rec.get('voertuigsoort', '')}, eerste toelating {rec.get('_datum_eerste_toelating') or '?'}"))
     sd = claim.schadedatum
-    if rec.get("wam_verzekerd", "").lower() == "nee":
-        out.append(_sig("V02_geen_wam_rdw", "RDW registreert geen WAM verzekering", "Volgens RDW is het voertuig nu niet WAM verzekerd.", "Voertuig"))
     tn = rec.get("_datum_tenaamstelling")
+    # De huidige WAM status zegt alleen iets als het voertuig sinds de schade niet van eigenaar is gewisseld
+    if rec.get("wam_verzekerd", "").lower() == "nee" and not (tn and sd and tn > sd):
+        out.append(_sig("V02_geen_wam_rdw", "RDW registreert geen WAM verzekering", "Volgens RDW is het voertuig nu niet WAM verzekerd.", "Voertuig"))
     if tn and sd and 0 <= (sd - tn).days <= 90:
         out.append(_sig("T07_recent_tenaamgesteld", "Voertuig kort voor de schade op naam gezet",
                         f"Tenaamstelling {tn:%d-%m-%Y}, {(sd - tn).days} dagen voor de schade.", "Voertuig"))
@@ -430,13 +439,16 @@ def rule_dekking(claim: Claim, ctx: RuleContext) -> list[Signal]:
         return out
     info = ctx.coverage.get(claim.kenteken)
     sd = claim.schadedatum
-    if info and info.voor_schade:
+    if info is None:
+        ctx.checks.append(CheckResult("Dekkingsbestand", "niet beschikbaar", "Kenteken is niet opgezocht in de dekkingsbestanden."))
+        return out
+    if info.voor_schade:
         if info.eerst_gezien and sd and 0 <= (sd - info.eerst_gezien).days <= 14:
             out.append(_sig("V09_kort_voor_schade_in_dekkingsbestand", "Voertuig kort voor de schade aan de dekking toegevoegd",
                             f"Voor het eerst in een dekkingsbestand op {info.eerst_gezien:%d-%m-%Y}, {(sd - info.eerst_gezien).days} dagen voor de schade.", "Voertuig"))
         ctx.checks.append(CheckResult("Dekkingsbestand", "ok", "Voertuig stond voor de schadedatum in het dekkingsbestand"
                                       + (f" (eerst gezien {info.eerst_gezien:%d-%m-%Y})" if info.eerst_gezien else "") + "."))
-    elif info and info.na_schade:
+    elif info.na_schade:
         out.append(_sig("V08_pas_na_schade_in_dekkingsbestand", "Voertuig pas na de schadedatum in het dekkingsbestand",
                         f"Eerst gezien {info.eerst_gezien:%d-%m-%Y}." if info.eerst_gezien else "Niet in dekkingsbestanden van voor de schade.",
                         "Voertuig", hard=True))
@@ -449,6 +461,22 @@ def rule_dekking(claim: Claim, ctx: RuleContext) -> list[Signal]:
     return out
 
 
+# --------------------------------------------------------------------------- signalen uit de stukken
+HARDE_EXTRA = {"S01_rol_tegenstrijdig_met_pv", "S02_alcohol_of_drugs"}
+
+
+def rule_extra(claim: Claim, ctx: RuleContext) -> list[Signal]:
+    """Signalen die bij het lezen van proces-verbaal, brieven of formulier zijn gevonden. Gewicht komt uit WEIGHTS."""
+    out = []
+    for e in claim.extra_signalen:
+        code = e.get("code", "")
+        if code not in WEIGHTS:
+            continue
+        out.append(Signal(code=code, titel=e.get("titel", code), toelichting=e.get("toelichting", ""),
+                          gewicht=WEIGHTS[code], categorie=e.get("categorie", "Stukken"), hard=code in HARDE_EXTRA))
+    return out
+
+
 RULES: list[Callable[[Claim, RuleContext], list[Signal]]] = [
-    rule_tijdlijn, rule_polis, rule_historie, rule_toedracht, rule_documentatie, rule_voertuig, rule_dekking, rule_relatie,
+    rule_tijdlijn, rule_polis, rule_historie, rule_toedracht, rule_documentatie, rule_voertuig, rule_dekking, rule_relatie, rule_extra,
 ]
