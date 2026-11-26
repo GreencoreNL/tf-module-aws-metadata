@@ -178,13 +178,17 @@ def render_email(a: Assessment) -> dict:
 
     li_sig = "".join(f"<li style='margin-bottom:4px'><b>{_e(s.titel)}</b><br><span style='color:#5A6B80'>{_e(s.toelichting)}</span></li>" for s in top)
     li_act = "".join(f"<li style='margin-bottom:4px'>{_e(x)}</li>" for x in acties)
+    # Het logo komt als inline bijlage mee. In Gmail: attachments[0] met inline=true, dan werkt cid:att0.
     html_body = f"""<div style="{FONT};font-size:14px;color:#1B2533;max-width:640px">
-<table style="width:100%;border-collapse:collapse;background:{EXPERT};color:#FFFFFF"><tr>
-<td style="padding:14px 18px"><b style="font-size:18px">Loxxo</b><br><span style="color:{EASY};font-size:13px">Fraude-indicatie schademelding</span></td></tr></table>
+<table style="width:100%;border-collapse:collapse"><tr>
+<td style="padding:4px 0 10px 0;vertical-align:middle;text-align:left"><img src="cid:att0" width="130" height="36" alt="Loxxo"></td>
+<td style="padding:4px 0 10px 0;vertical-align:middle;text-align:right;color:{MUTED};font-size:12px">Fraude-indicatie schademelding<br><b style="color:{EXPERT};font-size:15px">{_e(plate)}</b></td>
+</tr></table>
+<table style="width:100%;border-collapse:collapse"><tr><td style="background:{PASSION};height:3px;line-height:3px;font-size:2px;padding:0">&nbsp;</td></tr></table>
 <p>Hoi team,</p>
 <p>De fraudecheck geeft een <b style="color:{fg}">{kleur} signaal</b> voor de schade van <b>{_e(c.verzekerde)}</b> met kenteken <b>{_e(plate)}</b> (schadedatum {sd}).</p>
-<table style="width:100%;border-collapse:collapse;background:{bg}"><tr><td style="padding:12px 16px">
-<b style="font-size:20px;color:{fg}">{_e(a.niveau)}</b> <span style="color:{fg}">score {a.score} van 100</span></td></tr></table>
+<table style="width:100%;border-collapse:collapse"><tr><td style="background:{bg};border-left:6px solid {fg};padding:12px 16px">
+<b style="font-size:20px;color:{fg};white-space:nowrap">{_e(a.niveau)}</b>&nbsp;&nbsp;<span style="color:{fg};white-space:nowrap">score {a.score} van 100</span></td></tr></table>
 <p style="margin-bottom:4px"><b>Zwaarste signalen</b></p><ul style="margin-top:0;padding-left:20px">{li_sig}</ul>
 <p style="margin-bottom:4px"><b>Eerst doen</b></p><ol style="margin-top:0;padding-left:20px">{li_act}</ol>
 <p><a href="{{RAPPORT_URL}}" style="color:{EXPERT};font-weight:bold">Open het volledige rapport</a> · <a href="{{MAP_URL}}" style="color:{EXPERT}">Open de casemap</a></p>
