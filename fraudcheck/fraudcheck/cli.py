@@ -64,7 +64,8 @@ def cmd_local(args):
         rows = read_csv(args.bdx) if args.bdx.endswith(".csv") else read_xlsx(args.bdx, header_contains="Vehicle Registration Index")
         idx.add_claims(bdx_rows_to_records(rows), "BDX")
     for f in args.fraud or []:
-        idx.add_fraud(fraud_rows_to_records(read_xlsx(f, header_contains="Vehicle Reg")), Path(f).stem)
+        rows = read_csv(f) if f.endswith(".csv") else read_xlsx(f, header_contains="Vehicle Reg")
+        idx.add_fraud(fraud_rows_to_records(rows), Path(f).stem)
     idx.add_claims([ClaimRecord(bron="eFNOL", referentie=c.folder_name, kenteken=c.plate, tegenpartij_kenteken=c.tegenpartij_kenteken,
                                 schadedatum=c.schadedatum, verzekerde=c.verzekerde, folder_id=c.folder_id) for c in cases], "eFNOL meldingen")
     policies = PolicyLookup.from_json(args.policies) if args.policies else None
