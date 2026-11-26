@@ -60,6 +60,8 @@ def bepaal_prioriteit(d: dict) -> tuple[str, str]:
 
 
 def euro(v) -> str:
+    if v is None:
+        return "Nog te bepalen"
     try:
         return "€ " + f"{float(v):,.0f}".replace(",", ".")
     except (TypeError, ValueError):
@@ -90,10 +92,12 @@ def render_dossier_html(d: dict, now: Optional[datetime] = None) -> str:
 
     # Kernpunten in één oogopslag
     pct = b.get("aansprakelijkheid_pct_tegenpartij")
+    if r.get("totaal") is None and not r.get("posten"):
+        r = dict(r, posten=[{"post": "Nog te bepalen", "bedrag": None, "toelichting": r.get("toelichting", "")}])
     aanspr = b.get("aansprakelijkheid", "onbekend") + (f" ({pct}% tegenpartij)" if pct is not None else "")
     kern = [
         ("Aansprakelijkheid", aanspr),
-        ("Letsel", ("Ja. " if b.get("letsel") else "Nee. ") + (b.get("letsel_toelichting") or "")),
+        ("Letsel", {True: "Ja. ", False: "Nee. "}.get(b.get("letsel"), "Onbekend. ") + (b.get("letsel_toelichting") or "")),
         ("Zwaarte", f"{b.get('zwaarte', 'onbekend')}. Rijdbaar: {'ja' if b.get('rijdbaar') else 'nee' if b.get('rijdbaar') is False else 'onbekend'}"),
         ("Reservering", f"{euro(r.get('totaal'))}. {r.get('verhaal', '')}".strip()),
     ]
@@ -119,7 +123,8 @@ def render_dossier_html(d: dict, now: Optional[datetime] = None) -> str:
     form_rows = [
         ("Aanrijdingsformulier", "Aanwezig" + (", door beide partijen getekend" if f.get("door_beide_getekend") else ", niet door beide getekend")
          if f.get("aanwezig") else "Niet aanwezig"),
-        ("Gewonden (vak 3)", "Ja, aangekruist" if f.get("gewonden_aangekruist") else "Nee aangekruist"),
+        ("Gewonden (vak 3)", ("Ja aangekruist" if f.get("gewonden_aangekruist") else "Nee aangekruist")
+         if f.get("aanwezig") else "Niet bekend, geen formulier"),
         ("Toedracht A (vak 12)", "; ".join(f.get("kruisjes_a", []))),
         ("Toedracht B (vak 12)", "; ".join(f.get("kruisjes_b", []))),
         ("Getuigen", f.get("getuigen", "")), ("Politie", f.get("politie", "")),

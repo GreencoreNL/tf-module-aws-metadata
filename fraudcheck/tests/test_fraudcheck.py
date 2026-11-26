@@ -226,3 +226,12 @@ def test_dossier_prioriteit_en_render():
     assert bepaal_prioriteit(d)[0] == "Hoog"
     html = render_dossier_html(d)
     assert "Dossieranalyse" in html and "Reservering" in html
+
+
+def test_dossier_zonder_formulier_zegt_niets_over_vak3():
+    from fraudcheck.dossier import DOSSIER_VOORBEELD, render_dossier_html
+    import copy
+    d = copy.deepcopy(DOSSIER_VOORBEELD)
+    d["formulier"] = {"aanwezig": False}
+    html = render_dossier_html(d)
+    assert "Nee aangekruist" not in html and "geen formulier" in html
