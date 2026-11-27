@@ -127,6 +127,7 @@ def zoho_customer_lookup() -> CustomerLookup:
 class CoverageInfo:
     """Komt het kenteken voor in de dekkingsbestanden die claims@ naar Carglass en ANWB stuurt."""
     voor_schade: bool = False      # in een dekkingsbestand verstuurd op of voor de schadedatum
+    geen_bestand_voor_schade: bool = False  # er bestond nog geen dekkingsbestand op de schadedatum (eerste is van 4 mei 2026)
     na_schade: bool = False        # alleen in dekkingsbestanden na de schadedatum
     eerst_gezien: Optional[date] = None
 
@@ -143,6 +144,7 @@ class CoverageLookup:
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
         return cls({normalize_plate(k): CoverageInfo(voor_schade=bool(v.get("voor_schade")), na_schade=bool(v.get("na_schade")),
+                                                     geen_bestand_voor_schade=bool(v.get("geen_bestand_voor_schade")),
                                                      eerst_gezien=_date(v.get("eerst_gezien"))) for k, v in data.items()})
 
     def get(self, plate: str) -> Optional[CoverageInfo]:

@@ -87,6 +87,9 @@ class Claim:
     melder_telefoon: str = ""
     referentie_melder: str = ""
     nog_niet_aangeleverd: str = ""
+    plaats: str = ""
+    bestuurder: str = ""
+    letsel: str = ""
     attachments: list[Attachment] = field(default_factory=list)
     form_fields: dict = field(default_factory=dict)  # uit het schadeformulier gehaalde velden
     extra_signalen: list = field(default_factory=list)  # signalen die bij het lezen van de stukken zijn gevonden

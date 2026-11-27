@@ -70,6 +70,7 @@ WEIGHTS = {
     "S05_eenzijdig_ongeval_met_letselclaim": 10,
     "S06_tenaamstelling_direct_na_schade": 10,
     "S07_telefoongebruik": 10,
+    "S08_foto_ander_voertuig": 40,
 }
 
 NACHT_START, NACHT_EIND = 22, 6
@@ -128,6 +129,21 @@ class RuleContext:
         self.rdw_record: Optional[dict] = None
 
 
+def is_claim_derde(claim: Claim) -> bool:
+    """Aansprakelijkstelling of claim van een derde (tegenpartij, haar verzekeraar of belangenbehartiger)."""
+    t = f"{claim.wat_gebeurd} {claim.melder_bedrijf}".lower()
+    return any(k in t for k in ("aansprakelijkstelling", "claim van een derde", "verzekeraar tegenpartij", "belangenbehartiger"))
+
+
+def heeft_expertise(claim: Claim) -> bool:
+    """Een expertiserapport of schadecalculatie bevat vrijwel altijd foto's van de schade."""
+    for a in claim.attachments:
+        t = (a.text or "").lower()
+        if any(k in t for k in ("expertiserapport", "schade-calculatie", "s c h a d e - c a l c u l a t i e", "eindcalculatie")):
+            return True
+    return False
+
+
 # --------------------------------------------------------------------------- tijdlijn
 def rule_tijdlijn(claim: Claim, ctx: RuleContext) -> list[Signal]:
     out = []
@@ -142,6 +158,9 @@ def rule_tijdlijn(claim: Claim, ctx: RuleContext) -> list[Signal]:
                         "Tijdlijn", hard=True))
     else:
         days = (ref - sd).days
+        # Een verzekeraar of belangenbehartiger van een derde claimt pas na de eigen expertise. Alleen echt laat telt dan.
+        if is_claim_derde(claim) and days <= 90:
+            days = 0
         if days > 30:
             out.append(_sig("T03_late_melding_30", "Schade pas na meer dan 30 dagen gemeld", f"{days} dagen tussen schade en melding.", "Tijdlijn"))
         elif days > 14:
@@ -328,7 +347,7 @@ def rule_documentatie(claim: Claim, ctx: RuleContext) -> list[Signal]:
     out = []
     wat = (claim.wat_gebeurd or "").lower()
     tegen = (claim.tegenpartij or "").lower()
-    if not claim.photos:
+    if not claim.photos and not heeft_expertise(claim):
         out.append(_sig("A01_geen_fotos", "Geen foto's van de schade",
                         f"Volgens de melding nog niet aangeleverd: {claim.nog_niet_aangeleverd}." if claim.nog_niet_aangeleverd
                         else "Er zijn geen afbeeldingen in de casemap gevonden.", "Documentatie"))
@@ -442,6 +461,11 @@ def rule_dekking(claim: Claim, ctx: RuleContext) -> list[Signal]:
     if info is None:
         ctx.checks.append(CheckResult("Dekkingsbestand", "niet beschikbaar", "Kenteken is niet opgezocht in de dekkingsbestanden."))
         return out
+    if info.geen_bestand_voor_schade and not info.voor_schade:
+        ctx.checks.append(CheckResult("Dekkingsbestand", "niet beschikbaar",
+                                      "Op de schadedatum bestonden nog geen dekkingsbestanden in de mailbox. Dekking handmatig controleren in LoxxoTech Admin."
+                                      + (" Het voertuig staat wel in latere dekkingsbestanden." if info.na_schade else "")))
+        return out
     if info.voor_schade:
         if info.eerst_gezien and sd and 0 <= (sd - info.eerst_gezien).days <= 14:
             out.append(_sig("V09_kort_voor_schade_in_dekkingsbestand", "Voertuig kort voor de schade aan de dekking toegevoegd",
@@ -462,7 +486,7 @@ def rule_dekking(claim: Claim, ctx: RuleContext) -> list[Signal]:
 
 
 # --------------------------------------------------------------------------- signalen uit de stukken
-HARDE_EXTRA = {"S01_rol_tegenstrijdig_met_pv", "S02_alcohol_of_drugs"}
+HARDE_EXTRA = {"S01_rol_tegenstrijdig_met_pv", "S02_alcohol_of_drugs", "S08_foto_ander_voertuig"}
 
 
 def rule_extra(claim: Claim, ctx: RuleContext) -> list[Signal]:

@@ -272,3 +272,28 @@ def test_signalen_uit_stukken_tellen_mee_met_vast_gewicht():
 def test_wam_status_na_eigenaarswissel_telt_niet():
     rdw = FakeRDW({"AB123C": {"wam_verzekerd": "Nee", "_datum_tenaamstelling": date(2026, 11, 22)}})
     assert "V02_geen_wam_rdw" not in codes(assess(melding(), RuleContext(rdw=rdw)))
+
+
+def test_melding_zonder_tabel_wordt_ook_gelezen():
+    html_ = ("<html><body><p>Hierbij een nieuwe schademelding voor Kern Taxi met kenteken HHG45Z. De melding is op 25-11-2026 om 15:38 "
+             "bij Loxxo binnengekomen.</p><h3>Schade</h3><p>Verzekerde: Kern Taxi<br>Kenteken: HHG45Z<br>Schadedatum: 25-11-2026<br>"
+             "Wat is er gebeurd: Eenzijdig<br>Plaats: Overtoom Amsterdam<br>Letsel: Nee<br>Toedracht: Van de weg geraakt</p></body></html>")
+    c = parse_melding_html(html_)
+    assert c.plate == "HHG45Z" and c.schadedatum == date(2026, 11, 25) and c.plaats == "Overtoom Amsterdam" and c.letsel == "Nee"
+    assert c.gemeld_op.hour == 15
+
+
+def test_geen_dekkingsbestand_op_schadedatum_geeft_geen_signaal():
+    from fraudcheck.sources.context import CoverageInfo, CoverageLookup
+    cov = CoverageLookup({"AB123C": CoverageInfo(na_schade=True, geen_bestand_voor_schade=True)})
+    a = assess(melding(schadedatum="29-04-2026"), RuleContext(coverage=cov))
+    assert not {"V07_niet_in_dekkingsbestand", "V08_pas_na_schade_in_dekkingsbestand"} & codes(a)
+
+
+def test_claim_derde_kort_na_expertise_is_niet_laat_en_expertise_telt_als_fotos():
+    c = melding(schadedatum="08-09-2026", wat="Aanrijding met een ander voertuig, aansprakelijkstelling door Allianz")
+    c.attachments.append(Attachment(name="200ASMI8.PDF", mime_type="application/pdf", text="Expertiserapport ... foto's"))
+    a = assess(c, RuleContext())
+    assert not {"T03_late_melding_30", "T03_late_melding_14", "A01_geen_fotos"} & codes(a)
+    c2 = melding(schadedatum="29-04-2026", wat="Aanrijding, claim van een derde")
+    assert "T03_late_melding_30" in codes(assess(c2, RuleContext()))

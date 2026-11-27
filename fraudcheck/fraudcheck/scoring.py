@@ -41,6 +41,7 @@ ACTIES = {
     "S02_alcohol_of_drugs": "Toets de polisvoorwaarden op alcohol en drugs en overweeg verhaal op de bestuurder.",
     "S03_plaats_ongeval_verlaten": "Laat de identiteit van de bestuurder vaststellen via politie en verzekeringnemer.",
     "S04_toedracht_tegenstrijdig_met_stukken": "Leg de verschillende lezingen naast elkaar en vraag een verklaring van de verzekerde.",
+    "S08_foto_ander_voertuig": "Vraag originele foto's van het eigen voertuig met kenteken in beeld. Niets toezeggen tot de foto's kloppen.",
     "V07_niet_in_dekkingsbestand": "Controleer in LoxxoTech Admin of het voertuig op schadedatum op een polis stond.",
     "V08_pas_na_schade_in_dekkingsbestand": "Toets dekking. Het voertuig lijkt pas na de schade te zijn aangemeld.",
     "V09_kort_voor_schade_in_dekkingsbestand": "Vraag foto's van het voertuig bij aanmelden en toets of de schade al bestond.",

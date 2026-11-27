@@ -29,6 +29,10 @@ LABELS = {
     "email": "melder_email",
     "telefoon": "melder_telefoon",
     "referentie melder": "referentie_melder",
+    "plaats": "plaats",
+    "locatie": "plaats",
+    "bestuurder": "bestuurder",
+    "letsel": "letsel",
 }
 
 
@@ -110,6 +114,27 @@ def parse_melding_html(content: str, folder_id: str = "", folder_name: str = "")
             claim.schadetijd = parse_time(value)
         else:
             setattr(claim, attr, value)
+
+    # Oudere of handmatige meldingen hebben geen tabel maar regels als 'Kenteken: HHG45Z'
+    if not any(len(r) == 2 for r in reader.rows):
+        text = re.sub(r"<br\s*/?>", "\n", content)
+        text = re.sub(r"</p>|</h\d>", "\n", text)
+        text = html.unescape(re.sub(r"<[^>]+>", "", text))
+        for line in text.splitlines():
+            if ":" not in line:
+                continue
+            label, value = line.split(":", 1)
+            label, value = label.strip().lower(), value.strip()
+            attr = LABELS.get(label)
+            if not attr or not value:
+                continue
+            claim.raw[label.capitalize()] = value
+            if attr == "schadedatum":
+                claim.schadedatum = parse_nl_date(value)
+            elif attr == "schadetijd":
+                claim.schadetijd = parse_time(value)
+            else:
+                setattr(claim, attr, value)
 
     for p in reader.paragraphs:
         m = re.search(r"op (\d{1,2}-\d{1,2}-\d{4}) om (\d{1,2}:\d{2})", p)
