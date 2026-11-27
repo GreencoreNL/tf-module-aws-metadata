@@ -19,6 +19,10 @@ def format_plate(value: Optional[str]) -> str:
     p = normalize_plate(value)
     if len(p) != 6:
         return p
+    # Staan er al streepjes in (zoals de bron het schrijft, bv. FN-R7-7D) dan houden we dat aan
+    geschreven = re.sub(r"\s+", "", (value or "").upper())
+    if re.fullmatch(r"[A-Z0-9]{1,3}-[A-Z0-9]{1,3}-[A-Z0-9]{1,3}", geschreven):
+        return geschreven
     groups = re.findall(r"[A-Z]+|[0-9]+", p)
     if len(groups) == 3:
         return "-".join(groups)

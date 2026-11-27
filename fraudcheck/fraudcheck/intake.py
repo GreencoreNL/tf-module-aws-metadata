@@ -26,6 +26,8 @@ def _safe(name: str) -> str:
 
 def is_test(m: dict) -> bool:
     """Testmelding: melder met een loxxo.nl adres of TEST in verzekerde of referentie."""
+    if m.get("test"):
+        return True
     mail = (m.get("melder_email") or "").lower()
     return mail.endswith("@loxxo.nl") or any("TEST" in (m.get(k) or "").upper() for k in ("verzekerde", "referentie"))
 
@@ -33,22 +35,31 @@ def is_test(m: dict) -> bool:
 def melddatum(m: dict) -> datetime:
     """De dag dat de melding bij Loxxo binnenkwam, in Amsterdamse tijd. Bij een doorgestuurde mail via info@
     is dat de datum van de originele mail (veld 'ontvangen_origineel'). Nooit de schadedatum."""
-    d: datetime = m.get("ontvangen_origineel") or m["ontvangen"]
+    return _amsterdam(m.get("ontvangen_origineel") or m["ontvangen"])
+
+
+def _amsterdam(d: datetime) -> datetime:
     if d.tzinfo is not None:
         from zoneinfo import ZoneInfo
         d = d.astimezone(ZoneInfo("Europe/Amsterdam")).replace(tzinfo=None)
     return d
 
 
+def plate_text(kenteken: str) -> str:
+    """Kenteken zoals de bron het schrijft als daar al streepjes in staan (FN-R7-7D), anders met de sidecode."""
+    k = (kenteken or "").strip().upper()
+    return k if "-" in k else format_plate(k)
+
+
 def folder_name(m: dict) -> str:
     """'Melddatum Kenteken Verzekerde', met TEST vooraan bij een testmelding."""
-    naam = f"{melddatum(m):%Y-%m-%d} {format_plate(m.get('kenteken', '')) or 'onbekend kenteken'} {m.get('verzekerde', '')}"
+    naam = f"{melddatum(m):%Y-%m-%d} {plate_text(m.get('kenteken', '')) or 'onbekend kenteken'} {m.get('verzekerde', '')}"
     return _safe(("TEST " if is_test(m) else "") + naam)[:120]
 
 
 def mail_file_name(m: dict, afzender_naam: str) -> str:
     """'Mail Melddatum Afzender Kenmerk Kenteken.pdf', bijvoorbeeld 'Mail 2026-11-26 Allianz 672CC2044DN FN-R7-7D.pdf'."""
-    delen = [f"{melddatum(m):%Y-%m-%d}", afzender_naam, m.get("kenmerk", ""), format_plate(m.get("kenteken", ""))]
+    delen = [f"{melddatum(m):%Y-%m-%d}", afzender_naam, m.get("kenmerk", ""), plate_text(m.get("kenteken", ""))]
     return _safe("Mail " + " ".join(d for d in delen if d))[:150] + ".pdf"
 
 
@@ -58,7 +69,7 @@ def melding_html(m: dict) -> str:
     onderwerp, message_id, bijlagen (lijst namen)."""
     e = lambda v: html.escape(str(v or ""))  # noqa: E731
     ontv = melddatum(m)
-    schade = [("Verzekerde", m.get("verzekerde")), ("Kenteken", format_plate(m.get("kenteken")) or m.get("kenteken")),
+    schade = [("Verzekerde", m.get("verzekerde")), ("Kenteken", plate_text(m.get("kenteken"))),
               ("Schadedatum", m.get("schadedatum")), ("Tijdstip", m.get("tijdstip")), ("Wat is er gebeurd", m.get("wat_gebeurd")),
               ("Plaats", m.get("plaats")), ("Bestuurder", m.get("bestuurder")), ("Tegenpartij", m.get("tegenpartij")),
               ("Kenteken tegenpartij", m.get("kenteken_tegenpartij")), ("Letsel", m.get("letsel")), ("Rijdbaar", m.get("rijdbaar")),
@@ -73,7 +84,7 @@ def melding_html(m: dict) -> str:
         "<!doctype html><html lang='nl'><head><meta charset='utf-8'></head><body>"
         "<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;max-width:680px\">"
         f"<p>Beste,</p><p>Hierbij een nieuwe schademelding voor <b>{e(m.get('verzekerde'))}</b> met kenteken "
-        f"<b>{e(format_plate(m.get('kenteken')))}</b>. De melding is op {ontv:%d-%m-%Y} om {ontv:%H:%M} bij Loxxo binnengekomen.</p>"
+        f"<b>{e(plate_text(m.get('kenteken')))}</b>. De melding is op {ontv:%d-%m-%Y} om {ontv:%H:%M} bij Loxxo binnengekomen.</p>"
         f"<table style=\"border-collapse:collapse;width:100%;margin:14px 0\">{HEAD.format(t='Schade')}{rows(schade)}</table>"
         f"<table style=\"border-collapse:collapse;width:100%;margin:14px 0\">{HEAD.format(t='Melder')}{rows(melder)}</table>"
         f"<table style=\"border-collapse:collapse;width:100%;margin:14px 0\">{HEAD.format(t='Bron')}{rows(bron)}</table>"
@@ -86,7 +97,7 @@ def mail_html(mail: dict) -> str:
     """Kopie van de originele mail. mail: van, aan, cc, datum (datetime), onderwerp, bijlagen (namen),
     tekst (platte tekst) of html (de HTML body uit Gmail). De HTML body heeft voorrang zodat opmaak en tabellen blijven."""
     e = html.escape
-    d: datetime = mail["datum"]
+    d: datetime = _amsterdam(mail["datum"])
     kop = [("Van", mail.get("van")), ("Aan", mail.get("aan")), ("Cc", mail.get("cc")),
            ("Datum", f"{d:%d-%m-%Y %H:%M}"), ("Onderwerp", mail.get("onderwerp")),
            ("Bijlagen", ", ".join(mail.get("bijlagen") or []) or "Geen")]
@@ -95,6 +106,8 @@ def mail_html(mail: dict) -> str:
     if mail.get("html"):
         body = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", "", mail["html"])
         body = re.sub(r"(?is)</?(html|head|body|meta)[^>]*>", "", body)
+        # Ingesloten plaatjes (cid:, zoals logo's in de handtekening) kunnen niet mee en geven anders een leeg kader
+        body = re.sub(r"(?is)<img[^>]+src=[\"']?cid:[^>]*>", "", body)
     else:
         body = f"<div style='white-space:pre-wrap'>{e(mail.get('tekst') or '')}</div>"
     return (f"<!doctype html><html lang='nl'><head><meta charset='utf-8'><title>{e(mail.get('onderwerp') or '')}</title>"

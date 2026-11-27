@@ -331,3 +331,8 @@ def test_claim_derde_kort_na_expertise_is_niet_laat_en_expertise_telt_als_fotos(
     assert not {"T03_late_melding_30", "T03_late_melding_14", "A01_geen_fotos"} & codes(a)
     c2 = melding(schadedatum="29-04-2026", wat="Aanrijding, claim van een derde")
     assert "T03_late_melding_30" in codes(assess(c2, RuleContext()))
+
+
+def test_kenteken_zoals_geschreven_blijft_staan():
+    from fraudcheck.models import format_plate
+    assert format_plate("FN-R7-7D") == "FN-R7-7D" and format_plate("hsk17r") == "HSK-17-R"
