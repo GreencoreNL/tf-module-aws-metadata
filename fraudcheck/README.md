@@ -15,7 +15,7 @@ Beoordeelt elke schade die via de eFNOL in de Loxxo Fleet Portal binnenkomt en z
 
 | Bron | Wat we toetsen |
 |---|---|
-| Melding (eFNOL html) | schadedatum, melddatum, toedracht, tegenpartij, melder |
+| Melding (eFNOL, PDF of oude HTML) | schadedatum, melddatum, toedracht, tegenpartij, melder |
 | Bijlagen | foto's aanwezig, opnamedatum foto (EXIF), schadeformulier via OCR (datum, km stand, kentekens) |
 | BDX Van Ameyde (sheet Project BDX 2.0) | kenteken eerder schade, kenteken als tegenpartij, dezelfde partijen eerder, fraudevlag |
 | Eerdere eFNOL cases | zelfde kenteken, telefoon of e-mail bij andere verzekerden |
@@ -82,8 +82,35 @@ python -m fraudcheck dossier analyse.json --out rapporten
 ## Meldingen uit de claims@ mailbox
 
 `python -m fraudcheck intake mail.json --out cases` maakt van een schademelding per mail een casemap met
-dezelfde opbouw als de eFNOL: een `Melding ... .html` in het eFNOL formaat, een kopie van de originele mail
-(`Mail ... .html`) en alle bijlagen. De map heet `<ontvangstdatum> <kenteken> <verzekerde> (mail)`.
+dezelfde opbouw als de eFNOL. In de map komen alleen PDF's en de bijlagen, geen HTML:
+
+* `Melding <mapnaam>.pdf` in het eFNOL formaat (tabellen Schade, Melder en Bron)
+* `Mail <melddatum> <afzender> <kenmerk> <kenteken>.pdf`, een kopie van de originele mail met Van, Aan, Cc,
+  datum en tijd, onderwerp, de namen van de bijlagen en de volledige tekst. Gemaakt uit de HTML body van de
+  Gmail mail, zodat opmaak en tabellen blijven staan. Bijvoorbeeld `Mail 2026-11-26 Allianz 672CC2044DN FN-R7-7D.pdf`.
+* alle bijlagen zoals ze zijn meegestuurd
+
+De map heet `<melddatum> <kenteken> <verzekerde>`, bijvoorbeeld `2026-11-27 HSK-17-R NextGen Mobility`.
+De melddatum is de dag dat de melding bij Loxxo binnenkwam in Amsterdamse tijd, nooit de schadedatum.
+Bij een mail die via info@ is doorgestuurd telt de datum van de originele mail (`ontvangen_origineel`).
+Een testmelding (melder met een loxxo.nl adres of TEST in verzekerde of referentie) krijgt `TEST ` vooraan.
+Voor een testmap maakt `local` nooit een alertmail klaar.
+
+Invoer `mail.json`:
+
+```json
+{"melding": {"verzekerde": "...", "kenteken": "FNR77D", "schadedatum": "08-09-2026", "toedracht": "...",
+             "melder_naam": "...", "melder_bedrijf": "Allianz", "melder_email": "...", "referentie": "...",
+             "kenmerk": "672CC2044DN", "ontvangen": "2026-11-26T10:12:00+01:00", "onderwerp": "...", "message_id": "..."},
+ "mail": {"van": "...", "aan": "claims@loxxo.nl", "cc": "...", "datum": "2026-11-26T10:12:00+01:00",
+          "onderwerp": "...", "html_bestand": "body.html", "tekst": "alleen als er geen HTML body is"},
+ "afzender_naam": "Allianz",
+ "bijlagen": {"200ASMI8.PDF": "pad/naar/bestand"}}
+```
+
+PDF's worden gemaakt met headless Chrome (`CHROME_BIN`, standaard de Chromium van Playwright). Externe
+afbeeldingen in de mail worden niet geladen. De fraudecheck leest zowel `Melding ... .pdf` (nieuw, ook van het
+Typeform script) als `Melding ... .html` (oude mappen). Staan ze er allebei dan wint de PDF.
 Daarna werken `local` (fraude-indicatie) en `dossier` (dossieranalyse) precies zoals bij de eFNOL.
 
 Wat telt als nieuwe melding: de eerste mail over een schade van een verzekerde, tussenpersoon of tegenpartij

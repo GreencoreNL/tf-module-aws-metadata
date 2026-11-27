@@ -16,7 +16,7 @@ from pathlib import Path
 
 from .models import Attachment
 from .parse_form import parse_form_text
-from .parse_melding import parse_melding_html
+from .parse_melding import parse_melding_file
 from .pipeline import build_history, exif_datetime, run
 import json
 
@@ -33,10 +33,12 @@ DEFAULT_FRAUD = ["1A5EDFjv0y4LcsjQekIheWfKjmpksZJ0u", "1YgIgOb6sCC7WCstljtclS4FU
 
 
 def _load_local_case(path: Path):
-    melding = next((p for p in path.iterdir() if p.name.lower().startswith("melding") and p.suffix == ".html"), None)
+    # Nieuwe meldingen zijn een PDF, oude mappen hebben een HTML. Bij beide neemt de PDF voorrang.
+    kandidaten = [p for p in path.iterdir() if p.name.lower().startswith("melding") and p.suffix.lower() in (".pdf", ".html")]
+    melding = min(kandidaten, key=lambda p: p.suffix.lower() != ".pdf", default=None)
     if not melding:
         return None
-    claim = parse_melding_html(melding.read_text(encoding="utf-8"), folder_id=str(path), folder_name=path.name)
+    claim = parse_melding_file(melding, folder_id=str(path), folder_name=path.name)
     for p in path.iterdir():
         if p == melding or p.name.startswith(("Fraude-indicatie", "Dossieranalyse", "Mail ")):
             continue
@@ -79,7 +81,9 @@ def cmd_local(args):
         name = report_title(a)
         (out / f"{name}.html").write_text(render_html(a), encoding="utf-8")
         (out / f"{name}.json").write_text(to_json(a), encoding="utf-8")
-        if a.niveau in MAIL_NIVEAUS:
+        c = a.claim
+        testcase = c.folder_name.upper().startswith("TEST") or (c.melder_email or "").lower().endswith("@loxxo.nl")
+        if a.niveau in MAIL_NIVEAUS and not testcase:
             (out / f"{name}.mail.json").write_text(json.dumps(render_email(a), ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"{a.niveau:9} {a.score:3}  {c.folder_name}")
 
@@ -115,10 +119,16 @@ def cmd_intake(args):
     for f in args.mails:
         d = json.loads(Path(f).read_text(encoding="utf-8"))
         m = dict(d["melding"])
-        m["ontvangen"] = datetime.fromisoformat(m["ontvangen"])
+        for k in ("ontvangen", "ontvangen_origineel"):
+            if m.get(k):
+                m[k] = datetime.fromisoformat(m[k])
         att = {k: Path(v) for k, v in (d.get("bijlagen") or {}).items()}
         m.setdefault("bijlagen", list(att))
-        folder = write_case(Path(args.out), m, d.get("mailtekst", ""), d.get("afzender", ""), d.get("aan", ""), att)
+        mail = dict(d["mail"])
+        mail["datum"] = datetime.fromisoformat(mail["datum"])
+        if mail.get("html_bestand"):
+            mail["html"] = Path(mail.pop("html_bestand")).read_text(encoding="utf-8")
+        folder = write_case(Path(args.out), m, mail, d.get("afzender_naam", ""), att)
         print(folder)
 
 

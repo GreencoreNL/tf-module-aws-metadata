@@ -9,7 +9,7 @@ from typing import Optional
 
 from .models import Attachment, Claim
 from .parse_form import parse_form_text
-from .parse_melding import parse_melding_html
+from .parse_melding import parse_melding_html, parse_melding_pdf
 from .report import render_html, report_title
 from .rules import RuleContext
 from .scoring import assess
@@ -33,11 +33,20 @@ def exif_datetime(data: bytes) -> Optional[datetime]:
 
 def load_case(drive, folder: dict, ocr: bool = True) -> Optional[Claim]:
     files = drive.list_children(folder["id"])
-    melding = next((f for f in files if f["name"].lower().startswith("melding") and f["name"].lower().endswith(".html")), None)
+    meldingen = [f for f in files if f["name"].lower().startswith("melding") and f["name"].lower().endswith((".pdf", ".html"))]
+    melding = min(meldingen, key=lambda f: not f["name"].lower().endswith(".pdf"), default=None)
     if not melding:
         log.warning("Geen melding in %s", folder["name"])
         return None
-    claim = parse_melding_html(drive.download(melding["id"]).decode("utf-8", errors="replace"), folder["id"], folder["name"])
+    data = drive.download(melding["id"])
+    if melding["name"].lower().endswith(".pdf"):
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".pdf") as tmp:
+            tmp.write(data)
+            tmp.flush()
+            claim = parse_melding_pdf(tmp.name, folder["id"], folder["name"])
+    else:
+        claim = parse_melding_html(data.decode("utf-8", errors="replace"), folder["id"], folder["name"])
     for f in files:
         if f["id"] == melding["id"] or f["name"].startswith(REPORT_PREFIX):
             continue

@@ -244,20 +244,54 @@ def test_dossier_zonder_formulier_zegt_niets_over_vak3():
     assert "Nee aangekruist" not in html and "geen formulier" in html
 
 
-def test_intake_maakt_melding_die_de_parser_leest(tmp_path):
+def test_intake_maakt_pdf_melding_en_mail_die_de_parser_leest(tmp_path):
     from datetime import datetime
     from fraudcheck.intake import write_case
     from fraudcheck.cli import _load_local_case
-    m = {"verzekerde": "MO-EV Holding", "kenteken": "FTD-12-Z", "schadedatum": "11-10-2026", "tijdstip": "18:40",
+    lang = "Bezorger stak over en werd linksachter geraakt. " * 6
+    m = {"verzekerde": "MO-EV Holding", "kenteken": "FTD12Z", "schadedatum": "11-10-2026", "tijdstip": "18:40",
          "wat_gebeurd": "Aanrijding met een ander voertuig", "tegenpartij": "Ja", "kenteken_tegenpartij": "06-ZD-PZ",
-         "toedracht": "Bezorger stak over en werd linksachter geraakt", "melder_naam": "T. Peeters", "melder_bedrijf": "Remo",
-         "ontvangen": datetime(2026, 11, 2, 16, 21), "onderwerp": "Schademelding FTD-12-Z aanrijding", "message_id": "abc"}
+         "toedracht": lang.strip(), "melder_naam": "T. Peeters", "melder_bedrijf": "Remo", "melder_email": "t@remo.nl",
+         "ontvangen": datetime(2026, 11, 2, 16, 21), "onderwerp": "Schademelding FTD-12-Z aanrijding", "message_id": "abc",
+         "kenmerk": "R123"}
+    mail = {"van": "T. Peeters <t@remo.nl>", "aan": "claims@loxxo.nl", "datum": m["ontvangen"], "onderwerp": m["onderwerp"],
+            "html": "<p>Hallo,</p><p>Zie bijlage.</p>"}
     pdf = tmp_path / "x.pdf"; pdf.write_bytes(b"%PDF")
-    folder = write_case(tmp_path / "cases", m, "tekst", "a@b.nl", "claims@loxxo.nl", {"Bilal.pdf": pdf})
+    folder = write_case(tmp_path / "cases", m, mail, "Remo", {"Bilal.pdf": pdf})
+    assert folder.name == "2026-11-02 FTD-12-Z MO-EV Holding"
+    namen = sorted(p.name for p in folder.iterdir())
+    assert namen == ["Bilal.pdf", "Mail 2026-11-02 Remo R123 FTD-12-Z.pdf", "Melding 2026-11-02 FTD-12-Z MO-EV Holding.pdf"]
     c = _load_local_case(folder)
     assert c.plate == "FTD12Z" and c.tegenpartij_kenteken == "06ZDPZ" and c.schadetijd == "18:40"
-    assert c.gemeld_op == datetime(2026, 11, 2, 16, 21)
+    assert c.gemeld_op == datetime(2026, 11, 2, 16, 21) and c.toedracht == lang.strip()
     assert [a.name for a in c.attachments] == ["Bilal.pdf"]   # de mailkopie telt niet als bijlage
+
+
+def test_testmelding_krijgt_test_voor_mapnaam_en_melddatum_wint():
+    from datetime import datetime
+    from fraudcheck.intake import folder_name
+    m = {"verzekerde": "Kern", "kenteken": "HHG45Z", "melder_email": "x@loxxo.nl", "schadedatum": "01-11-2026",
+         "ontvangen": datetime(2026, 11, 27, 9, 0), "ontvangen_origineel": datetime(2026, 11, 26, 17, 0)}
+    assert folder_name(m) == "TEST 2026-11-26 HHG-45-Z Kern"
+
+
+def test_typeform_melding_pdf_wordt_gelezen(tmp_path):
+    from datetime import datetime
+    from fraudcheck.intake import html_to_pdf
+    from fraudcheck.parse_melding import parse_melding_file
+    rij = "<tr><td>{}</td><td>{}</td></tr>"
+    tabel = lambda kop, rows: f"<table><tr><th colspan=2>{kop}</th></tr>" + "".join(rij.format(*r) for r in rows) + "</table>"  # noqa: E731
+    html_ = ("<p>Beste,</p><p>Hierbij een nieuwe schademelding voor Kern met kenteken HHG-45-Z. De melding is op 27-11-2026 om "
+             "14:28 bij Loxxo binnengekomen.</p>"
+             + tabel("Schade", [("Verzekerde", "Kern"), ("Kenteken", "HHG-45-Z"), ("Schadedatum", "25-11-2026"),
+                                ("Letsel", "Nee"), ("Toedracht", "Kop staart")])
+             + tabel("Melder", [("Naam", "Test Melder"), ("E-mail", "test@loxxo.nl")])
+             + tabel("Contactpersoon verzekerde", [("Naam", "Contact"), ("E-mail", "c@kern.nl")]))
+    pdf = html_to_pdf(html_, tmp_path / "Melding TEST.pdf")
+    c = parse_melding_file(pdf)
+    assert c.verzekerde == "Kern" and c.plate == "HHG45Z" and c.schadedatum == date(2026, 11, 25)
+    assert c.melder_naam == "Test Melder" and c.melder_email == "test@loxxo.nl" and c.letsel == "Nee"
+    assert c.toedracht == "Kop staart" and c.gemeld_op == datetime(2026, 11, 27, 14, 28)
 
 
 def test_signalen_uit_stukken_tellen_mee_met_vast_gewicht():

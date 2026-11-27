@@ -96,11 +96,19 @@ def parse_melding_html(content: str, folder_id: str = "", folder_name: str = "")
     reader.feed(content)
 
     claim = Claim(folder_id=folder_id, folder_name=folder_name)
+    sectie = ""
     for row in reader.rows:
+        if len(row) == 1:
+            sectie = row[0].strip().lower()
+            continue
         if len(row) != 2:
             continue
         label = row[0].strip().lower().rstrip(":")
         value = html.unescape(row[1]).strip()
+        if "contactpersoon" in sectie:
+            # Contactpersoon verzekerde: niet over de melder heen schrijven
+            claim.raw[f"Contactpersoon {row[0].strip().lower()}"] = value
+            continue
         claim.raw[row[0].strip()] = value
         attr = LABELS.get(label)
         if not attr:
@@ -167,3 +175,85 @@ def find_plates(text: str) -> list[str]:
         if len(p) == 6 and re.search(r"[A-Z]", p) and re.search(r"\d", p) and p not in found:
             found.append(p)
     return found
+
+
+# Sectiekoppen in de melding. Een regel met alleen deze tekst start een nieuwe tabel.
+_SECTIES = ("schade", "melder", "contactpersoon verzekerde", "bron")
+
+
+def melding_pdf_text_to_html(text: str) -> str:
+    """Zet de tekst van een Melding .pdf (pdftotext -layout) om naar de HTML vorm die parse_melding_html leest.
+
+    In de PDF staat elke tabelrij als 'Label   waarde' met minstens twee spaties ertussen. Een lange waarde
+    loopt door op regels die ver inspringen. Losse tekst ervoor en erna wordt een alinea.
+    """
+    rows: list[list[str]] = []
+    paras: list[str] = []
+    in_tabel = False
+    kolom = None
+    for line in text.splitlines():
+        if not line.strip():
+            if not in_tabel and paras and paras[-1]:
+                paras.append("")
+            continue
+        stripped = line.strip()
+        if stripped.lower() in _SECTIES:
+            rows.append([stripped])
+            in_tabel = True
+            continue
+        m = re.match(r"^(\s*)(\S.*?)\s{2,}(\S.*)$", line)
+        if in_tabel and not m:
+            # Smalle kolommen: label en waarde met maar één spatie. Herken dan het bekende label.
+            low = stripped.lower()
+            bekend = next((lab for lab in sorted(LABELS, key=len, reverse=True) if low.startswith(lab + " ")), None)
+            if bekend:
+                rows.append([stripped[:len(bekend)], stripped[len(bekend):].strip()])
+                kolom = None
+                continue
+        if in_tabel and m and len(m.group(2)) <= 40:
+            kolom = line.index(m.group(3), len(m.group(1)) + len(m.group(2)))
+            rows.append([m.group(2).strip(), m.group(3).strip()])
+            continue
+        if in_tabel and rows and len(rows[-1]) == 2 and kolom and len(line) - len(line.lstrip()) >= kolom - 2:
+            rows[-1][1] += " " + stripped
+            continue
+        if in_tabel and rows and len(rows[-1]) == 2 and not m and len(stripped) <= 40 and line.startswith(" "):
+            # label zonder waarde
+            rows.append([stripped, ""])
+            continue
+        in_tabel = False
+        if paras and paras[-1]:
+            # Afgebroken op een streepje (zoals in een datum) zonder spatie verder
+            paras[-1] += ("" if paras[-1].endswith("-") else " ") + stripped
+        else:
+            if paras and paras[-1] == "":
+                paras[-1] = stripped
+            else:
+                paras.append(stripped)
+    e = html.escape
+    body = "".join(f"<p>{e(p)}</p>" for p in paras if p)
+    trs = "".join(f"<tr><th>{e(r[0])}</th></tr>" if len(r) == 1 else f"<tr><td>{e(r[0])}</td><td>{e(r[1])}</td></tr>" for r in rows)
+    return f"<html><body>{body}<table>{trs}</table></body></html>"
+
+
+def pdf_text(path: str) -> str:
+    """Tekst uit een PDF met behoud van kolommen. Gebruikt pdftotext (poppler), en anders pypdf."""
+    import shutil
+    import subprocess
+    if shutil.which("pdftotext"):
+        return subprocess.run(["pdftotext", "-layout", str(path), "-"], capture_output=True, text=True, check=True).stdout
+    from pypdf import PdfReader  # pragma: no cover
+    return "\n".join(p.extract_text(extraction_mode="layout") or "" for p in PdfReader(str(path)).pages)
+
+
+def parse_melding_pdf(path: str, folder_id: str = "", folder_name: str = "") -> Claim:
+    return parse_melding_html(melding_pdf_text_to_html(pdf_text(path)), folder_id=folder_id, folder_name=folder_name)
+
+
+def parse_melding_file(path, folder_id: str = "", folder_name: str = "") -> Claim:
+    """Leest een Melding .html (oud) of .pdf (nieuw)."""
+    from pathlib import Path
+    p = Path(path)
+    if p.suffix.lower() == ".pdf":
+        return parse_melding_pdf(str(p), folder_id, folder_name)
+    return parse_melding_html(p.read_text(encoding="utf-8"), folder_id, folder_name)
