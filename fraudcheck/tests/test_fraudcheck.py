@@ -336,3 +336,16 @@ def test_claim_derde_kort_na_expertise_is_niet_laat_en_expertise_telt_als_fotos(
 def test_kenteken_zoals_geschreven_blijft_staan():
     from fraudcheck.models import format_plate
     assert format_plate("FN-R7-7D") == "FN-R7-7D" and format_plate("hsk17r") == "HSK-17-R"
+
+
+def test_doorlopende_toedracht_die_met_label_begint_blijft_toedracht(tmp_path):
+    from datetime import datetime
+    from fraudcheck.intake import write_case
+    from fraudcheck.cli import _load_local_case
+    t = "Volgens het formulier reed onze auto achteruit tegen voertuig A dat stilstond voor het stoplicht bij de Neherkade. Kenteken B op het formulier is lastig leesbaar."
+    m = {"verzekerde": "Baleria B.V.", "kenteken": "HKG43X", "schadedatum": "22-06-2026", "toedracht": t,
+         "ontvangen": datetime(2026, 11, 27, 15, 53)}
+    folder = write_case(tmp_path, m, {"van": "a", "datum": m["ontvangen"], "tekst": "x"}, "RISK")
+    assert not folder.name.endswith(".")
+    c = _load_local_case(folder)
+    assert c.plate == "HKG43X" and "Kenteken B" in c.toedracht

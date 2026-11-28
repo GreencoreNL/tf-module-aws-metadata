@@ -201,6 +201,9 @@ def melding_pdf_text_to_html(text: str) -> str:
             rows.append([stripped])
             in_tabel = True
             continue
+        if in_tabel and rows and len(rows[-1]) == 2 and kolom and len(line) - len(line.lstrip()) >= kolom - 2:
+            rows[-1][1] += " " + stripped
+            continue
         m = re.match(r"^(\s*)(\S.*?)\s{2,}(\S.*)$", line)
         if in_tabel and not m:
             # Smalle kolommen: label en waarde met maar één spatie. Herken dan het bekende label.
@@ -213,9 +216,6 @@ def melding_pdf_text_to_html(text: str) -> str:
         if in_tabel and m and len(m.group(2)) <= 40:
             kolom = line.index(m.group(3), len(m.group(1)) + len(m.group(2)))
             rows.append([m.group(2).strip(), m.group(3).strip()])
-            continue
-        if in_tabel and rows and len(rows[-1]) == 2 and kolom and len(line) - len(line.lstrip()) >= kolom - 2:
-            rows[-1][1] += " " + stripped
             continue
         if in_tabel and rows and len(rows[-1]) == 2 and not m and len(stripped) <= 40 and line.startswith(" "):
             # label zonder waarde

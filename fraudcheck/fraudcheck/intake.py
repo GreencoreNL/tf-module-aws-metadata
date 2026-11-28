@@ -21,7 +21,8 @@ HEAD = "<tr><th colspan=\"2\" style=\"background:#1f3864;color:#fff;text-align:l
 
 
 def _safe(name: str) -> str:
-    return " ".join(re.sub(r"[\\\\/:*?\"<>|]+", " ", name).split())
+    # Geen punt of spatie aan het eind: dat geeft problemen bij uploaden en op Windows
+    return " ".join(re.sub(r"[\\\\/:*?\"<>|]+", " ", name).split()).rstrip(". ")
 
 
 def is_test(m: dict) -> bool:
