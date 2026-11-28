@@ -215,11 +215,10 @@ def render_email(a: Assessment) -> dict:
 <tr><td style="padding:14px 28px;background:#F8FAFC;border-top:1px solid #E6EAF0;font-size:12px;color:{MUTED}">Een signaal is een aanwijzing en geen bewijs. Neem geen besluit over dekking of uitkering op basis van alleen deze score.</td></tr>
 </table></td></tr></table>"""
     text = "\n".join([
-        "Hoi team,", "",
-        f"De fraudecheck geeft een {kleur} signaal voor de schade van {c.verzekerde} met kenteken {plate} (schadedatum {sd}).",
-        f"Indicatie {a.niveau}, score {a.score} van 100.", "", "Zwaarste signalen",
-        *[f"  {s.titel}: {s.toelichting}" for s in top], "", "Eerst doen",
-        *[f"  {i}. {x}" for i, x in enumerate(acties, 1)], "",
+        f"Fraude-indicatie {a.niveau}, score {a.score} van 100", "",
+        f"Verzekerde: {c.verzekerde or 'onbekend'}", f"Kenteken: {plate or 'onbekend'}", f"Schadedatum: {sd}", "",
+        "Zwaarste signalen", *[f"  {x.titel}: {x.toelichting}" for x in top], "",
+        "Eerst doen", *[f"  {i}. {x}" for i, x in enumerate(acties, 1)], "",
         "Rapport: {RAPPORT_URL}", "Casemap: {MAP_URL}", "",
         "Een signaal is een aanwijzing en geen bewijs.",
     ])
