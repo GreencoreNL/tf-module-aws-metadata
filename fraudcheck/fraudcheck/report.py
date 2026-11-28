@@ -176,24 +176,44 @@ def render_email(a: Assessment) -> dict:
     acties = a.vervolgacties[:3]
     sd = c.schadedatum.strftime("%d-%m-%Y") if c.schadedatum else "onbekend"
 
-    li_sig = "".join(f"<li style='margin-bottom:4px'><b>{_e(s.titel)}</b><br><span style='color:#5A6B80'>{_e(s.toelichting)}</span></li>" for s in top)
-    li_act = "".join(f"<li style='margin-bottom:4px'>{_e(x)}</li>" for x in acties)
+    sec = "padding:22px 28px 0 28px"
+    label = f"font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:{MUTED};font-weight:bold;padding-bottom:8px"
+    feiten = [("Verzekerde", c.verzekerde or "onbekend"), ("Kenteken", plate or "onbekend"), ("Schadedatum", sd)]
+    rows_feit = "".join(
+        f"<tr><td style='padding:6px 0;color:{MUTED};width:120px;border-top:1px solid #E6EAF0'>{k}</td>"
+        f"<td style='padding:6px 0;font-weight:bold;border-top:1px solid #E6EAF0'>{_e(v)}</td></tr>" for k, v in feiten)
+    rows_sig = "".join(
+        f"<tr><td style='padding:9px 0;border-top:1px solid #E6EAF0'><div style='font-weight:bold'>{_e(x.titel)}</div>"
+        f"<div style='color:{MUTED};font-size:13px;padding-top:2px'>{_e(x.toelichting)}</div></td></tr>" for x in top)
+    rows_act = "".join(
+        f"<tr><td style='padding:6px 10px 6px 0;vertical-align:top;width:22px'>"
+        f"<div style='width:20px;height:20px;line-height:20px;border-radius:10px;background:{EXPERT};color:#fff;font-size:11px;"
+        f"font-weight:bold;text-align:center'>{i}</div></td><td style='padding:6px 0;vertical-align:top'>{_e(x)}</td></tr>"
+        for i, x in enumerate(acties, 1))
     # Het logo komt als inline bijlage mee. In Gmail: attachments[0] met inline=true, dan werkt cid:att0.
-    html_body = f"""<div style="{FONT};font-size:14px;color:#1B2533;max-width:640px">
-<table style="width:100%;border-collapse:collapse"><tr>
-<td style="padding:4px 0 10px 0;vertical-align:middle;text-align:left"><img src="cid:att0" width="130" height="36" alt="Loxxo"></td>
-<td style="padding:4px 0 10px 0;vertical-align:middle;text-align:right;color:{MUTED};font-size:12px">Fraude-indicatie schademelding<br><b style="color:{EXPERT};font-size:15px">{_e(plate)}</b></td>
-</tr></table>
-<table style="width:100%;border-collapse:collapse"><tr><td style="background:{PASSION};height:3px;line-height:3px;font-size:2px;padding:0">&nbsp;</td></tr></table>
-<p>Hoi team,</p>
-<p>De fraudecheck geeft een <b style="color:{fg}">{kleur} signaal</b> voor de schade van <b>{_e(c.verzekerde)}</b> met kenteken <b>{_e(plate)}</b> (schadedatum {sd}).</p>
-<table style="width:100%;border-collapse:collapse"><tr><td style="background:{bg};border-left:6px solid {fg};padding:12px 16px">
-<b style="font-size:20px;color:{fg};white-space:nowrap">{_e(a.niveau)}</b>&nbsp;&nbsp;<span style="color:{fg};white-space:nowrap">score {a.score} van 100</span></td></tr></table>
-<p style="margin-bottom:4px"><b>Zwaarste signalen</b></p><ul style="margin-top:0;padding-left:20px">{li_sig}</ul>
-<p style="margin-bottom:4px"><b>Eerst doen</b></p><ol style="margin-top:0;padding-left:20px">{li_act}</ol>
-<p><a href="{{RAPPORT_URL}}" style="color:{EXPERT};font-weight:bold">Open het volledige rapport</a> · <a href="{{MAP_URL}}" style="color:{EXPERT}">Open de casemap</a></p>
-<p style="font-size:12px;color:#5A6B80">Een signaal is een aanwijzing en geen bewijs. Neem geen besluit over dekking of uitkering op basis van alleen deze score.</p>
-</div>"""
+    html_body = f"""<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F5F8;border-collapse:collapse"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#FFFFFF;border:1px solid #E6EAF0;border-collapse:collapse;{FONT};font-size:14px;line-height:1.45;color:#1B2533">
+<tr><td style="padding:20px 28px 16px 28px;border-bottom:3px solid {PASSION}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse"><tr>
+<td style="vertical-align:middle"><img src="cid:att0" width="92" height="25" alt="Loxxo" style="display:block;border:0"></td>
+<td style="vertical-align:middle;text-align:right;font-size:12px;color:{MUTED}">Fraude-indicatie</td></tr></table></td></tr>
+<tr><td style="{sec}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:{bg};border-radius:6px"><tr>
+<td style="padding:14px 18px"><div style="font-size:18px;font-weight:bold;color:{fg}">{_e(a.niveau)}</div>
+<div style="font-size:13px;color:{fg}">{kleur.capitalize()} signaal, score {a.score} van 100</div></td></tr></table></td></tr>
+<tr><td style="{sec}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">{rows_feit}</table></td></tr>
+<tr><td style="{sec}"><div style="{label}">Zwaarste signalen</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">{rows_sig}</table></td></tr>
+<tr><td style="{sec}"><div style="{label}">Eerst doen</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">{rows_act}</table></td></tr>
+<tr><td style="padding:22px 28px 24px 28px">
+<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse"><tr>
+<td style="background:{EXPERT};border-radius:4px"><a href="{{RAPPORT_URL}}" style="display:inline-block;padding:10px 18px;color:#FFFFFF;font-weight:bold;text-decoration:none">Open rapport</a></td>
+<td style="width:10px"></td>
+<td style="border:1px solid {EXPERT};border-radius:4px"><a href="{{MAP_URL}}" style="display:inline-block;padding:9px 17px;color:{EXPERT};font-weight:bold;text-decoration:none">Open casemap</a></td>
+</tr></table></td></tr>
+<tr><td style="padding:14px 28px;background:#F8FAFC;border-top:1px solid #E6EAF0;font-size:12px;color:{MUTED}">Een signaal is een aanwijzing en geen bewijs. Neem geen besluit over dekking of uitkering op basis van alleen deze score.</td></tr>
+</table></td></tr></table>"""
     text = "\n".join([
         "Hoi team,", "",
         f"De fraudecheck geeft een {kleur} signaal voor de schade van {c.verzekerde} met kenteken {plate} (schadedatum {sd}).",
