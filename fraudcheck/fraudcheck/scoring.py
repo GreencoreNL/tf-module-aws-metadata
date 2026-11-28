@@ -32,6 +32,7 @@ ACTIES = {
     "A01_geen_fotos": "Vraag foto's van de schade en van het hele voertuig met kenteken in beeld.",
     "A02_geen_formulier_bij_tegenpartij": "Vraag het ingevulde en door beide partijen getekende aanrijdingsformulier op.",
     "A03_foto_ouder_dan_schade": "Vraag originele foto's met metadata. Mogelijk een eerdere schade.",
+    "A06_formulier_ander_kenteken": "Vraag het juiste aanrijdingsformulier van deze schade op. Niets toezeggen tot het formulier bij dit kenteken past.",
     "A05_tegenpartij_kenteken_onbekend": "Vraag het kenteken van de tegenpartij op.",
     "V01_kenteken_onbekend_rdw": "Controleer het kenteken met de melder en de polis.",
     "V02_geen_wam_rdw": "Controleer de verzekeringsstatus bij RDW en polis.",

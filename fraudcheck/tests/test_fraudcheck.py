@@ -349,3 +349,22 @@ def test_doorlopende_toedracht_die_met_label_begint_blijft_toedracht(tmp_path):
     assert not folder.name.endswith(".")
     c = _load_local_case(folder)
     assert c.plate == "HKG43X" and "Kenteken B" in c.toedracht
+
+
+def test_formulier_met_ander_kenteken_geeft_hard_signaal():
+    from fraudcheck.parse_form import parse_form_text
+    c = melding()
+    t = "Aanrijdingsformulier voertuig A kenteken Z-383-HL voertuig B kenteken 02-HTJ-5"
+    c.attachments.append(Attachment(name="Schadeformulier.jpg", mime_type="image/jpeg", text=t))
+    c.form_fields["Schadeformulier.jpg"] = parse_form_text(t)
+    a = assess(c, RuleContext())
+    assert "A06_formulier_ander_kenteken" in codes(a) and a.niveau != "Laag"
+
+
+def test_formulier_met_eigen_kenteken_of_leesfout_geeft_geen_signaal():
+    from fraudcheck.parse_form import parse_form_text
+    for t in ("Aanrijdingsformulier A AB-123-C B 02-HTJ-5", "Aanrijdingsformulier A AB-128-C B 02-HTJ-5", "Aanrijdingsformulier zonder leesbaar kenteken"):
+        c = melding()
+        c.attachments.append(Attachment(name="Schadeformulier.jpg", mime_type="image/jpeg", text=t))
+        c.form_fields["Schadeformulier.jpg"] = parse_form_text(t)
+        assert "A06_formulier_ander_kenteken" not in codes(assess(c, RuleContext())), t

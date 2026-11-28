@@ -71,6 +71,8 @@ WEIGHTS = {
     "S06_tenaamstelling_direct_na_schade": 10,
     "S07_telefoongebruik": 10,
     "S08_foto_ander_voertuig": 40,
+    # Formulier hoort niet bij deze schade
+    "A06_formulier_ander_kenteken": 35,
 }
 
 NACHT_START, NACHT_EIND = 22, 6
@@ -361,6 +363,7 @@ def rule_documentatie(claim: Claim, ctx: RuleContext) -> list[Signal]:
         else:
             out.append(_sig("A05_tegenpartij_kenteken_onbekend", "Kenteken tegenpartij niet vastgelegd",
                             "Niet in de melding en niet leesbaar op het formulier. Zonder kenteken is de tegenpartij niet te toetsen.", "Documentatie"))
+    out.extend(_formulier_ander_kenteken(claim))
     exif_checked = False
     for p in claim.photos:
         if p.exif_datetime and claim.schadedatum:
@@ -372,6 +375,27 @@ def rule_documentatie(claim: Claim, ctx: RuleContext) -> list[Signal]:
     if claim.photos:
         ctx.checks.append(CheckResult("Foto metadata", "ok" if exif_checked else "niet beschikbaar",
                                       "Opnamedatum vergeleken met schadedatum" if exif_checked else "Foto's bevatten geen opnamedatum (vaak na doorsturen via WhatsApp of mail)."))
+    return out
+
+
+def _lijkt_op(a: str, b: str) -> bool:
+    """Zelfde kenteken of maximaal één teken anders (leesfout op een foto of scan)."""
+    return a == b or (len(a) == len(b) == 6 and sum(x != y for x, y in zip(a, b)) <= 1)
+
+
+def _formulier_ander_kenteken(claim: Claim) -> list[Signal]:
+    """Staat ons kenteken niet op het formulier terwijl er wel andere kentekens op staan, dan hoort het formulier
+    waarschijnlijk bij een andere schade. Alleen als er op het formulier minstens één kenteken te lezen is."""
+    own = claim.plate
+    if not own:
+        return []
+    out = []
+    for a in claim.forms:
+        gevonden = claim.form_fields.get(a.name, {}).get("kentekens", [])
+        if gevonden and not any(_lijkt_op(own, k) for k in gevonden):
+            out.append(_sig("A06_formulier_ander_kenteken", "Schadeformulier hoort bij een ander kenteken",
+                            f"Op {a.name} staan {', '.join(format_plate(k) for k in gevonden)} en niet {format_plate(own)}. "
+                            "Mogelijk is een formulier van een andere schade meegestuurd.", "Documentatie", hard=True))
     return out
 
 
