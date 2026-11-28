@@ -1,9 +1,9 @@
 # Prompt voor de geplande schaderun
 
-Maak de taak aan in claude.ai (Claude Code, geplande taken) met de connectors Gmail, Google Drive en Google Sheets aan, model Sonnet, een nieuwe sessie per run, op werkdagen om 07:53 en 16:07 (Europe/Amsterdam). Plak de tekst hieronder als opdracht.
+Maak de taak aan in claude.ai (Scheduled tasks, New task) met naam Schaderun, model Sonnet, repository GreencoreNL/tf-module-aws-metadata, op werkdagen om 16:00 (Europe/Amsterdam), met Gmail, Google Drive en Google Sheets aan. Plak de tekst hieronder als opdracht.
 
 ```
-Schaderun Loxxo: mailbox intake, fraudecheck en (alleen bij Verhoogd of Hoog) dossieranalyse. Werk zuinig: laat de Python tool het werk doen, lees alleen wat nodig is en stop zodra er niets nieuw is.
+Schaderun Loxxo: mailbox intake, fraudecheck en dossieranalyse voor elke nieuwe schade. Moet klaar zijn voor het project Intake Claims om 17:00. Werk zuinig: laat de Python tool het werk doen, lees alleen wat nodig is en stop zodra er niets nieuw is.
 
 Voorbereiding: ga naar de repo GreencoreNL/tf-module-aws-metadata (clone als hij er niet is), git fetch origin claude/fraud-detection-claims-tool-naq4ma en checkout die branch. pip install -q -r fraudcheck/requirements.txt. Lees fraudcheck/README.md. Werk in fraudcheck/ en zet tijdelijke bestanden in je scratchpad. Drive hoofdmap: 1Hruq_Gr9JsMY2gZ8iVhKhpob96FdR7Nv (0.3.6.30 Schademeldingen documenten). Heb je geen Gmail, Google Drive of Google Sheets tools (ook niet via ToolSearch), meld dat dan in één zin en stop.
 
@@ -13,7 +13,7 @@ Vaste regels: verzin niets. Pas bestaande rapporten nooit aan. Meld zelf niets b
 
 1. Zoek in de hoofdmap casemappen zonder bestand dat begint met "Fraude-indicatie". Zijn er geen, meld dat in één zin en stop.
 
-2. Zet de nieuwe casemappen lokaal klaar: download de Melding (.pdf of oude .html), foto's en pdf's. Zet de tekst van elke pdf of formulier in <bestand>.ocr.txt (pdftotext; bij een scan render met pdftoppm en lees zelf). Voor de historie: zet van de andere casemappen van de laatste 6 maanden alleen de Melding lokaal (de BDX dekt de oudere schades). Haal de BDX op met Google Sheets get_values ('bdx 011225'!A1:BX5000 uit 12T-8wR2Yk1lW08wTecuCtsidjra8A-kuZRwTUuoVZQg) en zet om met scripts/sheet_json_to_csv.py. Download de fraude registers 1QAR9TlQxImp0qLlCn9qry1EDU2KkIg-m, 1YgIgOb6sCC7WCstljtclS4FUvsJXx6ll en 1A5EDFjv0y4LcsjQekIheWfKjmpksZJ0u (xlsx) en het register Fraud NL 2026 (Sheet 12cfy9b8y6CYbpCQ7uhAW6-zxZSuzfu9I7HRUeufwDGU, get_values A1:BL1000, naar csv).
+2. Zet de nieuwe casemappen lokaal klaar: download de Melding (.pdf of oude .html), foto's en pdf's. Zet de tekst van elke pdf of formulier in <bestand>.ocr.txt (pdftotext; bij een scan of foto van een formulier lees zelf en schrijf de tekst in <bestand>.ocr.txt). Voor de historie: zet van de andere casemappen van de laatste 6 maanden alleen de Melding lokaal (de BDX dekt de oudere schades). Haal de BDX op met Google Sheets get_values ('bdx 011225'!A1:BX5000 uit 12T-8wR2Yk1lW08wTecuCtsidjra8A-kuZRwTUuoVZQg) en zet om met scripts/sheet_json_to_csv.py. Download de fraude registers 1QAR9TlQxImp0qLlCn9qry1EDU2KkIg-m, 1YgIgOb6sCC7WCstljtclS4FUvsJXx6ll en 1A5EDFjv0y4LcsjQekIheWfKjmpksZJ0u (xlsx) en het register Fraud NL 2026 (Sheet 12cfy9b8y6CYbpCQ7uhAW6-zxZSuzfu9I7HRUeufwDGU, get_values A1:BL1000, naar csv).
 
 3. Dekking: zoek per nieuwe case in Gmail (THREAD_VIEW_IDS_ONLY) op subject:Dekkingsbestand ("<kenteken met streepjes>" OR <kenteken zonder streepjes>) met before:<dag na schadedatum> en apart met after:<schadedatum>. Zet in dekking.json elk opgezocht kenteken, ook als niets gevonden is. Schadedatum voor 4 mei 2026: geen_bestand_voor_schade true. Gebruik Zoho niet.
 
@@ -21,11 +21,11 @@ Vaste regels: verzin niets. Pas bestaande rapporten nooit aan. Meld zelf niets b
 
 5. Draai python3 -m fraudcheck local <alle casemappen> --bdx <bdx.csv> --fraud <elk register> --coverage dekking.json --out <scratch>/rapporten. Controleer de uitkomst kort op onterechte signalen.
 
-6. Upload voor alleen de nieuwe cases het html rapport als Google Doc in de casemap (create_file, contentMimeType text/html, titel = bestandsnaam zonder .html, base64Content als sha256 verwijzing).
+6. Upload voor alleen de nieuwe cases het html rapport als Google Doc in de casemap (create_file, contentMimeType text/html, titel = bestandsnaam zonder .html, base64Content als sha256 verwijzing). Gebruik voor uploads een pad zonder punt aan het eind van een mapnaam (kopieer zo nodig eerst naar een eenvoudige naam).
 
-7. Staat er een <rapport>.mail.json (alleen Verhoogd of Hoog, nooit bij test), vervang {RAPPORT_URL} en {MAP_URL} door de echte links en verstuur met Gmail send_message naar claims@loxxo.nl (subject, htmlBody, body) met als enige bijlage het logo: sha256 verwijzing naar fraudcheck/assets/loxxo-logo-expert-blue.png (absoluut pad), filename loxxo-logo.png, mimeType image/png, inline true.
+7. Staat er een <rapport>.mail.json (alleen Verhoogd of Hoog, nooit bij test), vervang {RAPPORT_URL} en {MAP_URL} door de echte links en verstuur met Gmail send_message naar claims@loxxo.nl (subject, htmlBody = html, body = text) met als enige bijlage het logo: sha256 verwijzing naar fraudcheck/assets/loxxo-logo-expert-blue.png (absoluut pad), filename loxxo-logo.png, mimeType image/png, inline true.
 
-8. Alleen bij Verhoogd of Hoog: dossieranalyse. Lees melding, mail en stukken, lees het aanrijdingsformulier zelf (vak 3 gewonden, vak 12, schets, pagina 2), bekijk de foto's en controleer kentekens bij RDW. Schrijf een JSON volgens DOSSIER_VOORBEELD in fraudcheck/dossier.py. Wat niet uit de stukken blijkt is onbekend. Draai python3 -m fraudcheck dossier <json> --out <scratch>/dossier en upload als Google Doc in de casemap. Bij Laag geen dossieranalyse.
+8. Dossieranalyse voor elke nieuwe case, ook bij Laag (testmeldingen overslaan). Lees melding, mail en stukken, lees het aanrijdingsformulier zelf (vak 3 gewonden, vak 12, schets, pagina 2), bekijk de foto's en controleer kentekens bij RDW. Schrijf een JSON volgens DOSSIER_VOORBEELD in fraudcheck/dossier.py. Wat niet uit de stukken blijkt is onbekend. Draai python3 -m fraudcheck dossier <json> --out <scratch>/dossier en upload als Google Doc in de casemap.
 
-9. Commit en push alleen echte verbeteringen aan de tool op de branch. Sluit kort af: verwerkte en overgeslagen mails met reden, per nieuwe case mapnaam, niveau en score, de twee zwaarste signalen, link naar het rapport (en dossieranalyse), of er een mail is verstuurd, en wat niet lukte. Stel bij Hoog voor om de zaak bij de fraudecoördinator te melden.
+9. Commit en push alleen echte verbeteringen aan de tool op de branch. Sluit kort af: verwerkte en overgeslagen mails met reden, per nieuwe case mapnaam, niveau en score, de twee zwaarste signalen, prioriteit en aansprakelijkheid, links naar beide rapporten, of er een mail is verstuurd, en wat niet lukte. Stel bij Hoog voor om de zaak bij de fraudecoördinator te melden.
 ```
